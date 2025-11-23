@@ -46,7 +46,7 @@ I basically want the most general-purpose transmitters for the prototyping phase
 WAIT WAIT WAIT WAIT... I dont even need hardware yet. I can do this purely in simulation until I get the algorithms right. For a "hello world" PoC, just simulate three unique chirps being sent from different fixed distances, and toy around with the decoding algorithm until it can distinguish each chirp with all the interference. 
 
 
-# Plan for now, 11-21-2025
+# Plan for now, 11/21/2025
 The plan right now is to NOT use hardware at all yet; I will use Matlab (or python) to simulate the chirp transmit and receive, for various numbers of beacons and various noise levels and distributions.
 
 
@@ -63,3 +63,31 @@ The matlab code will simulate as follows: Each beacon will use a unique chirp pa
 *Simulation is fucking sexy.*
 
 
+# 11/22/2025
+Doing some research on acoustic triangulation. The main question right now is how to differentiate chirps from one another when received at the same time. 
+
+Some points from research:
+- "generalized cross-correlation" is an algorithm to calculate the variable coordinates from the fixed ones
+- Term may be "time difference of arrival", TDOA
+
+
+Look at this badass article:
+https://www.sciencedirect.com/science/article/pii/S0921889021002633
+**A framework for spatial map generation using acoustic echoes for robotic platforms**
+- this could offer a better alternative than using lidar to map the room. 
+
+Okay. I have to actually read these articles, not just keep piling them up on the backburner. Today I'll put together a reading list, tomorrow at work Ill go through it and take notes. This is definitely on the TBR
+
+
+# Reading list
+- A framework for spatial map generation using acoustic echoes for robotic platforms (https://www.sciencedirect.com/science/article/pii/S0921889021002633)
+- Towards Scalable Indoor Map Construction and Refinement using Acoustics on Smartphones(https://ieeexplore.ieee.org/abstract/document/8607106) <-- see if they published BatMapper, the acoustic floor plan generator they developed
+- Smartphone-based Acoustic Indoor Space Mapping(https://dl.acm.org/doi/10.1145/3214278)
+- Indoor Smartphone SLAM With Acoustic Echoes (https://ieeexplore.ieee.org/document/10275025)
+
+
+# Terminology
+- indoor location-based service
+- indoor positioning system
+- trilateration (using distances for positioning; its really this and not triangulation)
+- Simultaneous location and mapping (SLAM) 
