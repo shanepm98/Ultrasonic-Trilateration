@@ -6,7 +6,7 @@ This is essentially a small-scale, localized analog of GPS, but using ultrasonic
 
 ## Repo overview
 - `docs/` contains all documentation for the project. Theory of operation, results of testing, assembly instructions, etc.
-- `src/` contains all source code and firmware
+- `src/` contains all source code and firmware. Note that `soniclib_esp32_bsp` contains the ESP32 board support package for soniclib
 - `CAD/` contains all electronics schematics, PCB files, and any relevant 3D CAD files
 - `pics/` contains pictures of the project
 
