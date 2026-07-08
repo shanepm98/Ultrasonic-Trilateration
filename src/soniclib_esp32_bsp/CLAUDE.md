@@ -9,3 +9,7 @@
 # Testing
 - Test your code by running `./build.sh` and verifying that the code built successfully
 - Once the bsp code is complete and builds successfully, remove the `app_main()` entrypoint, as it is not the main file
+
+# Wrap-up
+- After testing is completed/at end of session, generate documentation (explanation + usage instructions) to `docs/` if present
+- At end of session, update `TODO.md` if present, with next steps to be taken
