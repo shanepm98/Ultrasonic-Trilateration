@@ -24,3 +24,9 @@ cleanly (`./build.sh`), but has never run against real hardware. Next steps, in 
 - [ ] Longer-term / only if needed: non-blocking I/Q readout (`chbsp_spi_mem_read_nb`) is currently
       unimplemented (returns error via the `chbsp_dummy.c` stub) - add it if higher-throughput
       non-blocking reads become necessary.
+
+
+## PCB Design
+- [ ] Fix the 1v8/3v3 rails (wired to the FPC connector backwards)
+- [ ] Change the terminology used on the solder bridges
+- [ ] Add red/green LEDs for indicating operational status (power-on self-test result, runtime errors, etc)
