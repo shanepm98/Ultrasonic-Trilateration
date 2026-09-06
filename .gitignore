@@ -6,3 +6,7 @@ build/
 sdkconfig
 sdkconfig.old
 managed_components/
+
+
+# Kicad stuff that's already compressed
+CAD/Rangefinder_test_schematic_v3/
