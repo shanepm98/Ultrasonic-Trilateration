@@ -1,19 +1,18 @@
 # ESP32 SonicLib Board Support Package
 
-Location: `src/soniclib_esp32_bsp`
+Location: `src/components/soniclib_esp32_bsp` (an ESP-IDF component).
 
 This is a board support package (BSP) that lets [TDK/InvenSense SonicLib
 v4](https://github.com/tdk-invn-oss/ultrasonic.soniclib) drive a single ICU-20201 ultrasonic
 sensor from an ESP32 (DevkitV1) running ESP-IDF's FreeRTOS. It implements the `chbsp_*` callback
-interface SonicLib requires (defined in `chirp_bsp.h`) but is not itself an application - it has
-no measurement logic and, in its finished state, no `app_main()`. It's meant to be consumed as an
-ESP-IDF component by an application project (e.g. the rangefinder test rig firmware).
+interface SonicLib requires (declared in `invn/soniclib/chirp_bsp.h`) but is not itself an
+application - it has no measurement logic and no `app_main()`. It is consumed as a component by
+the apps under `src/apps/`.
 
 ## Hardware target
 
 Single ICU-20201 sensor wired to the ESP32 over SPI, matching
-`rangefinder_client.kicad_sch` / `rangefinder_master_beacon.kicad_sch` (identical wiring on both
-boards):
+`CAD/Rangefinder_test_schematic_v3`:
 
 | Signal | ESP32 GPIO | ICU-20201 pin | Role |
 |---|---|---|---|
@@ -26,7 +25,7 @@ boards):
 
 No I2C, RESET_N, or PROG lines are used - ICU/Shasta-generation sensors don't have them. Pin
 numbers and SPI parameters (host, clock speed, DMA scratch buffer size) live in
-`src/main/esp32_bsp_internal.h` if the wiring ever changes.
+`esp32_bsp_internal.h` if the wiring ever changes.
 
 SPI is **mode 3** (CPOL=1, CPHA=1) - required by the ICU-20201, DS-000478 Table 1 (pin 2 SCLK)
 and AN-000357 Table 1 (pin 10 SCLK). Set in `chbsp_esp32_init.c` (`devcfg.mode = 3`). Clock is a
@@ -39,18 +38,22 @@ the BSP was first written against).
 
 ## File layout
 
-- `src/components/invn-soniclib/` - vendored SonicLib source (ICU/Shasta support + GPT
-  rangefinding firmware only), copied from the upstream repo. Its `CMakeLists.txt` sets the board
-  configuration (`CHIRP_MAX_NUM_SENSORS`, `CHIRP_NUM_BUSES`, `CHIRP_SENSOR_INT_PIN`,
-  `CHIRP_SENSOR_TRIG_PIN`, `MAX_PROG_XFER_SIZE`) via `PUBLIC` compile definitions rather than a
-  `chirp_board_config.h` file, so there's no circular dependency between this library component
-  and the BSP component.
-- `src/main/chirp_bsp.h` - vendor-supplied interface definition (unmodified).
-- `src/main/esp32_bsp_internal.h` - pin assignments and the hardware handles shared between the
-  two files below. Not part of the public interface.
-- `src/main/chbsp_esp32_init.{h,c}` - one-time hardware setup. See "Usage" below.
-- `src/main/esp32_bsp.c` - the `chbsp_*` function implementations themselves, plus the GPIO ISR
-  handler for INT2 (the data-ready line).
+The BSP component is `src/components/soniclib_esp32_bsp/`:
+
+- `include/chbsp_esp32_init.h` - the one public header: `chbsp_esp32_init()`. See "Usage" below.
+- `esp32_bsp_internal.h` - pin assignments and hardware handles shared between the two `.c`
+  files. Private (`PRIV_INCLUDE_DIRS`), not part of the public interface. Also carries the
+  compile-time `#error` guard requiring `INCLUDE_SHASTA_SUPPORT`.
+- `chbsp_esp32_init.c` - one-time GPIO/SPI/ISR/event-group setup.
+- `esp32_bsp.c` - the `chbsp_*` implementations, plus the GPIO ISR handler for INT2 (data-ready).
+  Includes the vendored `<invn/soniclib/chirp_bsp.h>` directly (no local copy).
+
+The vendored SonicLib lives in a separate component, `src/components/invn-soniclib/` (ICU/Shasta
+support + GPT rangefinding firmware only). Its `CMakeLists.txt` sets the board configuration
+(`CHIRP_MAX_NUM_SENSORS`, `CHIRP_NUM_BUSES`, `CHIRP_SENSOR_INT_PIN`, `CHIRP_SENSOR_TRIG_PIN`,
+`MAX_PROG_XFER_SIZE`, `INCLUDE_SHASTA_SUPPORT`, `USE_DEFERRED_INTERRUPT_PROCESSING`,
+`CH_LOG_MODULE_LEVEL`) via `PUBLIC` compile definitions rather than a `chirp_board_config.h`
+file, so there's no circular dependency between the library and the BSP.
 
 ## Usage
 
@@ -79,9 +82,9 @@ void app_main(void) {
 }
 ```
 
-To use the BSP from another ESP-IDF project, add both `src/main` (or copy its files into your
-own component) and `src/components/invn-soniclib` as components, with your component requiring
-`invn-soniclib` the same way `src/main/CMakeLists.txt` does here.
+To use the BSP from another app, point that app's `EXTRA_COMPONENT_DIRS` at `src/components/`
+(see `src/apps/hardware_bringup/CMakeLists.txt`) and add `soniclib_esp32_bsp` to your component's
+`REQUIRES`. It brings `invn-soniclib` in transitively.
 
 ## What's implemented vs. not
 
@@ -93,7 +96,8 @@ FreeRTOS event group; `chbsp_event_notify()` runs in ISR context via
 `xEventGroupSetBitsFromISR()`).
 
 Deliberately not implemented (the sensor/board don't need them, or SonicLib's ICU/Shasta code
-path never calls them - see `chirp_bsp.h` for which functions are Whitney/CH101/CH201-only):
+path never calls them - see `invn/soniclib/chirp_bsp.h` for which functions are
+Whitney/CH101/CH201-only):
 I2C (any of it), sensor RESET_N/PROG control, debug indicator pins (none wired on this board),
 and non-blocking SPI I/Q readout (`chbsp_spi_mem_read_nb` - can be added later if needed). These
 fall back to the harmless no-op weak stubs in SonicLib's own `chbsp_dummy.c`.
@@ -117,12 +121,5 @@ calibration, not during normal measurement.
 
 ## Building
 
-```sh
-./build.sh   # runs idf.py build inside the espressif/idf Docker image
-```
-
-Note: as delivered, `src/main` has no `app_main()` (removed once the BSP itself was verified to
-compile and link cleanly, per this project's `CLAUDE.md`), so `./build.sh` will succeed through
-compiling and archiving every component but fail at the final link step with `undefined reference
-to app_main`. That's expected for a standalone build of this BSP - see `TODO.md` for the temporary
-harness to restore when testing against real hardware.
+The BSP is a component, not a standalone project - it is built as part of whichever app pulls it
+in. `cd src/apps/hardware_bringup && ./build.sh` exercises it.

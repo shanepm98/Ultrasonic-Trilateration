@@ -1,19 +1,20 @@
 # Hardware bring-up
 
-Project: `src/hardware_bringup` (ESP-IDF). See `src/hardware_bringup/README.md` for the full
-API / build reference; this doc is the higher-level explanation and the current status.
+App: `src/apps/hardware_bringup` (ESP-IDF). See `src/apps/hardware_bringup/README.md` for the
+full API / build reference; this doc is the higher-level explanation and the current status.
 
 ## Purpose
 
 Bring up the EV_MOD_ICU-20201 ultrasonic module wired to an ESP32 DevKitV1, on top of the
-SonicLib board support package in `src/soniclib_esp32_bsp`. The first deliverable is a
+SonicLib board support package in `src/components/soniclib_esp32_bsp`. The first deliverable is a
 **power-on self-test (POST)** that verifies the ESP32 can talk to the sensor over SPI.
 
 ## Power-on self-test
 
-`src/hardware_bringup/main/power_on_self_test.{c,h}` - a reusable, SonicLib-level module (no
-direct esp-idf calls) so later firmware can call `post_run()` at boot regardless of BSP or
-wiring changes. All hardware access goes through the `chbsp_*` callbacks the BSP implements.
+The `icu_post` component (`src/components/icu_post/`, `icu_post.{c,h}`) - a reusable,
+SonicLib-level module (no direct esp-idf calls beyond `esp_log`) so any app can call `post_run()`
+at boot regardless of BSP or wiring changes. All hardware access goes through the `chbsp_*`
+callbacks the BSP implements.
 
 | Stage | Call | Pass means |
 |---|---|---|
@@ -28,13 +29,13 @@ Not the production entry point.
 ### Running it
 
 ```sh
-cd src/hardware_bringup
+cd src/apps/hardware_bringup
 ./build.sh                              # build only (espressif/idf Docker image)
 ./build.sh -p /dev/ttyUSB0 -b 115200 flash monitor
 ```
 
-`build.sh` mounts the repo `src/` dir so the shared `soniclib_esp32_bsp` + `invn-soniclib`
-components resolve, passes args through to `idf.py`, and auto-adds the serial device's group
+`build.sh` mounts the repo `src/` dir so the shared components under `src/components/`
+resolve, passes args through to `idf.py`, and auto-adds the serial device's group
 (`--device` / `--group-add`) because the host user is not in the `uucp` group and cannot open
 `/dev/ttyUSB0` directly. Console is UART0 (USB serial) at 115200; watch the `bringup` / `POST`
 log tags.
@@ -43,7 +44,7 @@ log tags.
 
 - **SPI mode 3** (CPOL=1, CPHA=1) is mandatory for the ICU-20201 - DS-000478 Table 1 (pin 2
   SCLK), AN-000357 Table 1 (pin 10 SCLK). The BSP originally set mode 0; fixed to
-  `devcfg.mode = 3` in `src/soniclib_esp32_bsp/src/main/chbsp_esp32_init.c`.
+  `devcfg.mode = 3` in `src/components/soniclib_esp32_bsp/chbsp_esp32_init.c`.
 - **INT line roles** (fixed earlier this session): INT1 / GPIO2 = hardware trigger output
   (`CHIRP_SENSOR_TRIG_PIN=1`); INT2 / GPIO4 = data-ready interrupt input
   (`CHIRP_SENSOR_INT_PIN=2`). Both are open-drain at the sensor, held high by external 2.2k
@@ -68,14 +69,21 @@ defined(INCLUDE_WHITNEY_SUPPORT)` in every transport function (`ch_driver.c`). F
   `-DINCLUDE_SHASTA_SUPPORT` is on the command line (set `PUBLIC` in `invn-soniclib`'s
   `CMakeLists.txt`, inherited via `REQUIRES`).
 
-`esp32_bsp_internal.h` and `power_on_self_test.c` now carry an `#error` guard that fails the
-build if `INCLUDE_SHASTA_SUPPORT` is missing (or `INCLUDE_WHITNEY_SUPPORT` is also set).
+`esp32_bsp_internal.h` and `icu_post.c` now carry an `#error` guard that fails the build if
+`INCLUDE_SHASTA_SUPPORT` is missing (or `INCLUDE_WHITNEY_SUPPORT` is also set).
 
-## Status (2026-09-04)
+## Status (2026-09-05)
 
-USB cable issue is resolved. The POST runs on hardware, but **stage 1 fails - the ESP32 cannot
-read the sensor over SPI** (`chdrv_prog_ping()` gets no valid CPU ID). Stage 1 now logs the raw
-`CPU_ID_HI` value read back, which will point at the cause (power / MISO / SPI mode / level
-shifter). SonicLib's own log level was raised from ERROR to INFO (`CH_LOG_MODULE_LEVEL=2` in
-`invn-soniclib/CMakeLists.txt`) so `ch_group_start()`'s discovery/programming steps are visible.
-Detailed diagnostic steps are in `TODO.md`.
+**The POST passes on hardware** - all three stages. Getting there turned up and fixed:
+
+- FFC pinout in the datasheet was mirrored - the connector had to be rewired 1<->12, 2<->11, ...
+- SPI mode 0 -> 3 (DS-000478 / AN-000357).
+- INT1/INT2 role swap: INT1 = trigger (`CHIRP_SENSOR_TRIG_PIN=1`), INT2 = data-ready
+  (`CHIRP_SENSOR_INT_PIN=2`).
+- `USE_DEFERRED_INTERRUPT_PROCESSING` - without it, the GPIO ISR ran SPI-heavy
+  `chdrv_int_callback_deferred()` inline in ISR context and hit an interrupt-watchdog panic.
+- `CH_LOG_MODULE_LEVEL` ERROR -> INFO so SonicLib's discovery/programming steps show on the
+  console.
+
+Next: the real measurement loop (see `TODO.md`). It must wake a task from the INT2 ISR (via the
+BSP event group) and do range readout there, never in the ISR.

@@ -1,1 +1,8 @@
-datasheets/
+# Bulky mirrored ESP-IDF HTML docs (the PDF datasheets under docs/datasheets/ are kept)
+docs/datasheets/esp32/
+
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
