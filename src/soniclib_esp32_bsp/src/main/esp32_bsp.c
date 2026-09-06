@@ -17,7 +17,7 @@
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 
-/* ===================== INT1 (data-ready interrupt, CHIRP_SENSOR_INT_PIN) ===================== */
+/* ===================== INT1 (hardware trigger, CHIRP_SENSOR_TRIG_PIN) ===================== */
 
 void chbsp_group_set_int1_dir_out(ch_group_t *grp_ptr) {
 	(void)grp_ptr;
@@ -59,27 +59,11 @@ void chbsp_int1_set(ch_dev_t *dev_ptr) {
 	gpio_set_level(BSP_PIN_INT1, 1);
 }
 
-void chbsp_group_int1_interrupt_enable(ch_group_t *grp_ptr) {
-	(void)grp_ptr;
-	gpio_intr_enable(BSP_PIN_INT1);
-}
+/* INT1 is the trigger pin on this board (CHIRP_SENSOR_TRIG_PIN=1); SonicLib never arms an
+ * interrupt on it, so chbsp_int1_interrupt_enable()/disable() are left to the chbsp_dummy.c
+ * no-op stubs. The interrupt-enable control lives in the INT2 block below. */
 
-void chbsp_int1_interrupt_enable(ch_dev_t *dev_ptr) {
-	(void)dev_ptr;
-	gpio_intr_enable(BSP_PIN_INT1);
-}
-
-void chbsp_group_int1_interrupt_disable(ch_group_t *grp_ptr) {
-	(void)grp_ptr;
-	gpio_intr_disable(BSP_PIN_INT1);
-}
-
-void chbsp_int1_interrupt_disable(ch_dev_t *dev_ptr) {
-	(void)dev_ptr;
-	gpio_intr_disable(BSP_PIN_INT1);
-}
-
-/* ===================== INT2 (hardware trigger, CHIRP_SENSOR_TRIG_PIN) ===================== */
+/* ===================== INT2 (data-ready interrupt, CHIRP_SENSOR_INT_PIN) ===================== */
 
 void chbsp_group_set_int2_dir_out(ch_group_t *grp_ptr) {
 	(void)grp_ptr;
@@ -119,6 +103,26 @@ void chbsp_group_int2_set(ch_group_t *grp_ptr) {
 void chbsp_int2_set(ch_dev_t *dev_ptr) {
 	(void)dev_ptr;
 	gpio_set_level(BSP_PIN_INT2, 1);
+}
+
+void chbsp_group_int2_interrupt_enable(ch_group_t *grp_ptr) {
+	(void)grp_ptr;
+	gpio_intr_enable(BSP_PIN_INT2);
+}
+
+void chbsp_int2_interrupt_enable(ch_dev_t *dev_ptr) {
+	(void)dev_ptr;
+	gpio_intr_enable(BSP_PIN_INT2);
+}
+
+void chbsp_group_int2_interrupt_disable(ch_group_t *grp_ptr) {
+	(void)grp_ptr;
+	gpio_intr_disable(BSP_PIN_INT2);
+}
+
+void chbsp_int2_interrupt_disable(ch_dev_t *dev_ptr) {
+	(void)dev_ptr;
+	gpio_intr_disable(BSP_PIN_INT2);
 }
 
 /* ===================== SPI ===================== */
@@ -200,7 +204,7 @@ uint8_t chbsp_event_wait(uint16_t time_out_ms, uint32_t event_mask) {
 	return ((bits & event_mask) == event_mask) ? 0 : 1;
 }
 
-/* Called from ch_interrupt(), in ISR context (see bsp_int1_isr_handler() below). */
+/* Called from ch_interrupt(), in ISR context (see bsp_int2_isr_handler() below). */
 void chbsp_event_notify(uint32_t event_mask) {
 	BaseType_t higher_priority_task_woken = pdFALSE;
 	xEventGroupSetBitsFromISR(bsp_event_group, event_mask, &higher_priority_task_woken);
@@ -213,9 +217,9 @@ void chbsp_print_str(const char *str) {
 	printf("%s", str);
 }
 
-/* ===================== INT1 GPIO ISR ===================== */
+/* ===================== INT2 GPIO ISR (data-ready) ===================== */
 
-void bsp_int1_isr_handler(void *arg) {
+void bsp_int2_isr_handler(void *arg) {
 	(void)arg;
 	ch_interrupt(bsp_grp_ptr, 0); /* single sensor on this board, dev_num is always 0 */
 }

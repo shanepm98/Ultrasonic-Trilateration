@@ -18,18 +18,20 @@ uint8_t *bsp_spi_scratch               = NULL;
 EventGroupHandle_t bsp_event_group     = NULL;
 
 static esp_err_t init_gpio(void) {
-	gpio_config_t int1_cfg = {
-			.pin_bit_mask = (1ULL << BSP_PIN_INT1),
+	/* Sensor INT2 line (BSP_PIN_INT2) carries the data-ready interrupt - CHIRP_SENSOR_INT_PIN=2 */
+	gpio_config_t int2_cfg = {
+			.pin_bit_mask = (1ULL << BSP_PIN_INT2),
 			.mode         = GPIO_MODE_INPUT,
 			.pull_up_en   = GPIO_PULLUP_DISABLE, /* external 2.2k pull-up already present */
 			.pull_down_en = GPIO_PULLDOWN_DISABLE,
 			.intr_type    = GPIO_INTR_NEGEDGE, /* ICU interrupt lines are active low */
 	};
-	esp_err_t err = gpio_config(&int1_cfg);
+	esp_err_t err = gpio_config(&int2_cfg);
 	if (err != ESP_OK) return err;
 
+	/* Sensor INT1 line (BSP_PIN_INT1) is the hardware trigger output - CHIRP_SENSOR_TRIG_PIN=1 */
 	gpio_config_t out_cfg = {
-			.pin_bit_mask = (1ULL << BSP_PIN_INT2) | (1ULL << BSP_PIN_SPI_CS),
+			.pin_bit_mask = (1ULL << BSP_PIN_INT1) | (1ULL << BSP_PIN_SPI_CS),
 			.mode         = GPIO_MODE_OUTPUT,
 			.pull_up_en   = GPIO_PULLUP_DISABLE,
 			.pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -38,16 +40,16 @@ static esp_err_t init_gpio(void) {
 	err = gpio_config(&out_cfg);
 	if (err != ESP_OK) return err;
 
-	gpio_set_level(BSP_PIN_INT2, 1);    /* trigger line idle high */
+	gpio_set_level(BSP_PIN_INT1, 1);    /* trigger line idle high */
 	gpio_set_level(BSP_PIN_SPI_CS, 1);  /* chip select idle high (inactive) */
 
 	err = gpio_install_isr_service(0);
 	if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err; /* already installed is fine */
 
-	err = gpio_isr_handler_add(BSP_PIN_INT1, bsp_int1_isr_handler, NULL);
+	err = gpio_isr_handler_add(BSP_PIN_INT2, bsp_int2_isr_handler, NULL);
 	if (err != ESP_OK) return err;
 
-	return gpio_intr_disable(BSP_PIN_INT1); /* SonicLib arms it later via chbsp_int1_interrupt_enable() */
+	return gpio_intr_disable(BSP_PIN_INT2); /* SonicLib arms it later via chbsp_int2_interrupt_enable() */
 }
 
 static esp_err_t init_spi(void) {
@@ -63,7 +65,8 @@ static esp_err_t init_spi(void) {
 	if (err != ESP_OK) return err;
 
 	spi_device_interface_config_t devcfg = {
-			.mode           = 0, /* ICU-20201 SPI: CPOL=0, CPHA=0 */
+			.mode           = 3, /* ICU-20201 SPI is CPOL=1, CPHA=1 - DS-000478 Table 1 (pin 2 SCLK),
+			                      * AN-000357 Table 1 (pin 10 SCLK) */
 			.clock_speed_hz = BSP_SPI_CLOCK_HZ,
 			.spics_io_num   = -1, /* CS driven manually by chbsp_spi_cs_on()/off() */
 			.queue_size     = 4,

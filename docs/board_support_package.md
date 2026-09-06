@@ -21,12 +21,21 @@ boards):
 | MISO | GPIO19 | 4 | SPI |
 | SCLK | GPIO18 | 2 | SPI |
 | CS   | GPIO5  | 5 | SPI, manual (software) chip-select |
-| INT1 | GPIO2  | 6 | Data-ready interrupt (input, external 2.2k pull-up to 3.3V) |
-| INT2 | GPIO4  | 7 | Hardware trigger (output, external 2.2k pull-up to 3.3V) |
+| INT1 | GPIO2  | 6 | Hardware trigger (output, external 2.2k pull-up to 3.3V) |
+| INT2 | GPIO4  | 7 | Data-ready interrupt (input, external 2.2k pull-up to 3.3V) |
 
 No I2C, RESET_N, or PROG lines are used - ICU/Shasta-generation sensors don't have them. Pin
 numbers and SPI parameters (host, clock speed, DMA scratch buffer size) live in
 `src/main/esp32_bsp_internal.h` if the wiring ever changes.
+
+SPI is **mode 3** (CPOL=1, CPHA=1) - required by the ICU-20201, DS-000478 Table 1 (pin 2 SCLK)
+and AN-000357 Table 1 (pin 10 SCLK). Set in `chbsp_esp32_init.c` (`devcfg.mode = 3`). Clock is a
+conservative 1 MHz (`BSP_SPI_CLOCK_HZ`); datasheet max is 13 MHz. INT1/INT2 are open-drain on the
+sensor, held high by the external 2.2k pull-ups; fine for a single board, but relevant if the INT1
+trigger line is ever wired between two boards for pitch-catch (see `CAD/Rangefinder_test_schematic_v3`).
+
+Wiring above matches `CAD/Rangefinder_test_schematic_v3` (SPI unchanged from the earlier revision
+the BSP was first written against).
 
 ## File layout
 
@@ -41,7 +50,7 @@ numbers and SPI parameters (host, clock speed, DMA scratch buffer size) live in
   two files below. Not part of the public interface.
 - `src/main/chbsp_esp32_init.{h,c}` - one-time hardware setup. See "Usage" below.
 - `src/main/esp32_bsp.c` - the `chbsp_*` function implementations themselves, plus the GPIO ISR
-  handler for INT1.
+  handler for INT2 (the data-ready line).
 
 ## Usage
 
@@ -76,7 +85,7 @@ own component) and `src/components/invn-soniclib` as components, with your compo
 
 ## What's implemented vs. not
 
-Implemented for real: INT1 (data-ready interrupt) direction/level/enable control, INT2 (hardware
+Implemented for real: INT2 (data-ready interrupt) direction/level/enable control, INT1 (hardware
 trigger) direction/level control, manual SPI chip-select plus blocking SPI read/write (routed
 through a DMA-capable scratch buffer), microsecond/millisecond delay, millisecond timestamp, and
 the event-wait/notify primitives SonicLib uses internally during `ch_group_start()` (backed by a
@@ -88,6 +97,16 @@ path never calls them - see `chirp_bsp.h` for which functions are Whitney/CH101/
 I2C (any of it), sensor RESET_N/PROG control, debug indicator pins (none wired on this board),
 and non-blocking SPI I/Q readout (`chbsp_spi_mem_read_nb` - can be added later if needed). These
 fall back to the harmless no-op weak stubs in SonicLib's own `chbsp_dummy.c`.
+
+The `invn-soniclib` component is built with `USE_DEFERRED_INTERRUPT_PROCESSING`. The BSP's GPIO
+ISR (`bsp_int2_isr_handler`) calls `ch_interrupt()`; without this define, `chdrv_int_callback()`
+runs the SPI-heavy `chdrv_int_callback_deferred()` inline in ISR context, where the blocking
+`spi_device_transmit()` deadlocks (interrupt-watchdog panic "running in ISR context"). With it,
+the ISR only does `gpio_intr_disable()` + `xEventGroupSetBitsFromISR()`; the deferred SPI reads
+run at task level - from SonicLib's own `event_wait()` during `ch_group_start()`, and from the
+application's measurement task afterward. A real measurement loop must therefore wake a task from
+the ISR (via the event group) and call `chdrv_int_callback_deferred()` / read range data there,
+not in the ISR.
 
 One deliberate deviation from the "obvious" FreeRTOS approach: `chbsp_delay_ms()` busy-waits
 (`esp_rom_delay_us()`) rather than calling `vTaskDelay()`. `CONFIG_FREERTOS_HZ=100` gives only

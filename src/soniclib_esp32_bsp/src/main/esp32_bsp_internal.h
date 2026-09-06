@@ -10,6 +10,16 @@
 #define ESP32_BSP_INTERNAL_H_
 
 #include <invn/soniclib/soniclib.h>
+
+/* This BSP implements only the SPI transport (chbsp_spi_*) that ICU / Shasta-generation sensors
+ * use - there is no chbsp_i2c_* here. SonicLib picks SPI vs I2C at compile time via these
+ * symbols; if INCLUDE_SHASTA_SUPPORT is missing it silently falls back to the CHx01 / I2C path
+ * (see invn/soniclib/details/chirp_board_config.h), which would not even link against this BSP.
+ * Fail loudly instead. */
+#if !defined(INCLUDE_SHASTA_SUPPORT) || defined(INCLUDE_WHITNEY_SUPPORT)
+#error "Build SonicLib with INCLUDE_SHASTA_SUPPORT and without INCLUDE_WHITNEY_SUPPORT for this ICU-20201 SPI BSP"
+#endif
+
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
@@ -24,8 +34,8 @@ extern "C" {
 #define BSP_PIN_SPI_MISO GPIO_NUM_19
 #define BSP_PIN_SPI_SCLK GPIO_NUM_18
 #define BSP_PIN_SPI_CS   GPIO_NUM_5 /* manual (software) chip select */
-#define BSP_PIN_INT1     GPIO_NUM_2 /* data-ready interrupt, CHIRP_SENSOR_INT_PIN */
-#define BSP_PIN_INT2     GPIO_NUM_4 /* hardware trigger, CHIRP_SENSOR_TRIG_PIN */
+#define BSP_PIN_INT1     GPIO_NUM_2 /* sensor INT1 line - hardware trigger, CHIRP_SENSOR_TRIG_PIN */
+#define BSP_PIN_INT2     GPIO_NUM_4 /* sensor INT2 line - data-ready interrupt, CHIRP_SENSOR_INT_PIN */
 
 #define BSP_SPI_HOST          SPI2_HOST
 #define BSP_SPI_CLOCK_HZ      (1 * 1000 * 1000)
@@ -45,9 +55,9 @@ extern uint8_t *bsp_spi_scratch;
 /*!< Signals chbsp_event_wait() from chbsp_event_notify() (called in ISR context from ch_interrupt()). */
 extern EventGroupHandle_t bsp_event_group;
 
-/*!< GPIO ISR handler for BSP_PIN_INT1 (data-ready interrupt), defined in esp32_bsp.c and attached
+/*!< GPIO ISR handler for BSP_PIN_INT2 (data-ready interrupt), defined in esp32_bsp.c and attached
  * to the pin by chbsp_esp32_init(). */
-void bsp_int1_isr_handler(void *arg);
+void bsp_int2_isr_handler(void *arg);
 
 #ifdef __cplusplus
 }
