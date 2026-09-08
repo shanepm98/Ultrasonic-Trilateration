@@ -204,11 +204,16 @@ uint8_t chbsp_event_wait(uint16_t time_out_ms, uint32_t event_mask) {
 	return ((bits & event_mask) == event_mask) ? 0 : 1;
 }
 
-/* Called from ch_interrupt(), in ISR context (see bsp_int2_isr_handler() below). */
+/* Called from ch_interrupt() to wake chbsp_event_wait(). ch_interrupt() runs in bsp_int_task
+ * (task context), but stay ISR-safe in case a future path calls it from an ISR. */
 void chbsp_event_notify(uint32_t event_mask) {
-	BaseType_t higher_priority_task_woken = pdFALSE;
-	xEventGroupSetBitsFromISR(bsp_event_group, event_mask, &higher_priority_task_woken);
-	portYIELD_FROM_ISR(higher_priority_task_woken);
+	if (xPortInIsrContext()) {
+		BaseType_t higher_priority_task_woken = pdFALSE;
+		xEventGroupSetBitsFromISR(bsp_event_group, event_mask, &higher_priority_task_woken);
+		portYIELD_FROM_ISR(higher_priority_task_woken);
+	} else {
+		xEventGroupSetBits(bsp_event_group, event_mask);
+	}
 }
 
 /* ===================== Debug output ===================== */
@@ -217,10 +222,28 @@ void chbsp_print_str(const char *str) {
 	printf("%s", str);
 }
 
-/* ===================== INT2 GPIO ISR (data-ready) ===================== */
+/* ===================== INT2 data-ready: ISR + deferring task ===================== */
 
+/* The GPIO ISR must stay trivial: SonicLib's ch_interrupt() -> chdrv_int_callback() ->
+ * chdrv_int_callback_deferred() does blocking SPI reads (interrupt-source register, measurement
+ * metadata, and the application's data-ready callback), which is illegal in ISR context. So the
+ * ISR just wakes bsp_int_task, which calls ch_interrupt() at task level. */
 void bsp_int2_isr_handler(void *arg) {
 	(void)arg;
-	ch_interrupt(bsp_grp_ptr, 0); /* single sensor on this board, dev_num is always 0 */
+	BaseType_t higher_priority_task_woken = pdFALSE;
+	vTaskNotifyGiveFromISR(bsp_int_task_handle, &higher_priority_task_woken);
+	portYIELD_FROM_ISR(higher_priority_task_woken);
+}
+
+void bsp_int_task(void *arg) {
+	(void)arg;
+	for (;;) {
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+		ch_interrupt(bsp_grp_ptr, 0); /* single sensor -> dev_num 0; runs chdrv_int_callback[_deferred] */
+		/* chdrv_int_callback() disabled the GPIO interrupt while it manipulated the INT pin;
+		 * re-arm it for the next measurement. (During ch_group_start() SonicLib re-arms it
+		 * itself before each wait, so this is redundant there but harmless.) */
+		gpio_intr_enable(BSP_PIN_INT2);
+	}
 }
 

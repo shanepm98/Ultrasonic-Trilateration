@@ -19,6 +19,7 @@
 
 #include "chbsp_esp32_init.h"
 #include "icu_post.h"
+#include "rangefinder_loop.h"
 
 static const char *TAG = "bringup";
 
@@ -62,10 +63,10 @@ void app_main(void) {
 		}
 	}
 
-	ESP_LOGI(TAG, "POST passed - ICU-20201 is alive (part %u, %" PRIu32 " Hz). Idling.",
-	         res.part_number, res.op_frequency_hz);
-	for (;;) {
-		vTaskDelay(pdMS_TO_TICKS(30000));
-		ESP_LOGI(TAG, "idle - POST passed");
-	}
+	ESP_LOGI(TAG, "POST passed - ICU-20201 is alive (part %u, %" PRIu32 " Hz)", res.part_number,
+	         res.op_frequency_hz);
+
+	/* Hand off to the free-running rangefinding loop - configures the sensor and streams the
+	 * measured distance to the console. Does not return. */
+	rangefinder_run(&grp, &dev);
 }

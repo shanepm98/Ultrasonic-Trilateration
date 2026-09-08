@@ -44,16 +44,17 @@ The BSP component is `src/components/soniclib_esp32_bsp/`:
 - `esp32_bsp_internal.h` - pin assignments and hardware handles shared between the two `.c`
   files. Private (`PRIV_INCLUDE_DIRS`), not part of the public interface. Also carries the
   compile-time `#error` guard requiring `INCLUDE_SHASTA_SUPPORT`.
-- `chbsp_esp32_init.c` - one-time GPIO/SPI/ISR/event-group setup.
-- `esp32_bsp.c` - the `chbsp_*` implementations, plus the GPIO ISR handler for INT2 (data-ready).
-  Includes the vendored `<invn/soniclib/chirp_bsp.h>` directly (no local copy).
+- `chbsp_esp32_init.c` - one-time GPIO/SPI/ISR/event-group/task setup.
+- `esp32_bsp.c` - the `chbsp_*` implementations, the GPIO ISR handler for INT2 (data-ready), and
+  `bsp_int_task` (see "Interrupt handling" below). Includes the vendored
+  `<invn/soniclib/chirp_bsp.h>` directly (no local copy).
 
 The vendored SonicLib lives in a separate component, `src/components/invn-soniclib/` (ICU/Shasta
 support + GPT rangefinding firmware only). Its `CMakeLists.txt` sets the board configuration
 (`CHIRP_MAX_NUM_SENSORS`, `CHIRP_NUM_BUSES`, `CHIRP_SENSOR_INT_PIN`, `CHIRP_SENSOR_TRIG_PIN`,
-`MAX_PROG_XFER_SIZE`, `INCLUDE_SHASTA_SUPPORT`, `USE_DEFERRED_INTERRUPT_PROCESSING`,
-`CH_LOG_MODULE_LEVEL`) via `PUBLIC` compile definitions rather than a `chirp_board_config.h`
-file, so there's no circular dependency between the library and the BSP.
+`MAX_PROG_XFER_SIZE`, `INCLUDE_SHASTA_SUPPORT`, `CH_LOG_MODULE_LEVEL`) via `PUBLIC` compile
+definitions rather than a `chirp_board_config.h` file, so there's no circular dependency between
+the library and the BSP.
 
 ## Usage
 
@@ -92,8 +93,7 @@ Implemented for real: INT2 (data-ready interrupt) direction/level/enable control
 trigger) direction/level control, manual SPI chip-select plus blocking SPI read/write (routed
 through a DMA-capable scratch buffer), microsecond/millisecond delay, millisecond timestamp, and
 the event-wait/notify primitives SonicLib uses internally during `ch_group_start()` (backed by a
-FreeRTOS event group; `chbsp_event_notify()` runs in ISR context via
-`xEventGroupSetBitsFromISR()`).
+FreeRTOS event group).
 
 Deliberately not implemented (the sensor/board don't need them, or SonicLib's ICU/Shasta code
 path never calls them - see `invn/soniclib/chirp_bsp.h` for which functions are
@@ -102,15 +102,23 @@ I2C (any of it), sensor RESET_N/PROG control, debug indicator pins (none wired o
 and non-blocking SPI I/Q readout (`chbsp_spi_mem_read_nb` - can be added later if needed). These
 fall back to the harmless no-op weak stubs in SonicLib's own `chbsp_dummy.c`.
 
-The `invn-soniclib` component is built with `USE_DEFERRED_INTERRUPT_PROCESSING`. The BSP's GPIO
-ISR (`bsp_int2_isr_handler`) calls `ch_interrupt()`; without this define, `chdrv_int_callback()`
-runs the SPI-heavy `chdrv_int_callback_deferred()` inline in ISR context, where the blocking
-`spi_device_transmit()` deadlocks (interrupt-watchdog panic "running in ISR context"). With it,
-the ISR only does `gpio_intr_disable()` + `xEventGroupSetBitsFromISR()`; the deferred SPI reads
-run at task level - from SonicLib's own `event_wait()` during `ch_group_start()`, and from the
-application's measurement task afterward. A real measurement loop must therefore wake a task from
-the ISR (via the event group) and call `chdrv_int_callback_deferred()` / read range data there,
-not in the ISR.
+## Interrupt handling
+
+SonicLib's `ch_interrupt()` (called on each data-ready) runs `chdrv_int_callback_deferred()`,
+which does blocking SPI reads (interrupt-source register, measurement metadata) and calls the
+application's data-ready callback. That cannot run in ISR context - `spi_device_transmit()` would
+deadlock (the earlier bring-up hit an "Interrupt wdt timeout ... running in ISR context" panic).
+
+So the BSP splits it: `bsp_int2_isr_handler` (the GPIO ISR) does nothing but
+`vTaskNotifyGiveFromISR(bsp_int_task_handle)`. A dedicated high-priority task, `bsp_int_task`,
+takes that notification and calls `ch_interrupt(bsp_grp_ptr, 0)` at task level, then re-arms the
+GPIO interrupt (`chdrv_int_callback()` disables it while it toggles the INT pin). This path
+serves both `ch_group_start()` and normal measurements, so `USE_DEFERRED_INTERRUPT_PROCESSING` is
+**not** defined. `chbsp_event_notify()` is written ISR-safe anyway (`xPortInIsrContext()` check).
+
+An application registers its data-ready callback with `ch_io_int_callback_set()`; SonicLib invokes
+it from `bsp_int_task` context, so it may call `ch_get_range()` etc. directly (see
+`src/apps/hardware_bringup/main/rangefinder_loop.c`).
 
 One deliberate deviation from the "obvious" FreeRTOS approach: `chbsp_delay_ms()` busy-waits
 (`esp_rom_delay_us()`) rather than calling `vTaskDelay()`. `CONFIG_FREERTOS_HZ=100` gives only

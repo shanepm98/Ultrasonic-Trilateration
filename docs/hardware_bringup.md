@@ -23,8 +23,29 @@ callbacks the BSP implements.
 | 3. Sensor identity | `ch_get_part_number` / `ch_get_sensor_id` / `ch_get_fw_version_string` / `ch_get_frequency` / `ch_get_rtc_cal_result` | Programmed sensor reports sane values - part `20201`, operating frequency ~85 kHz (70-95 kHz per DS-000478), non-zero RTC cal. |
 
 `main/post_main.c` is the bring-up harness (`app_main`): `ch_group_init` -> `ch_init` ->
-`chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure, then idling.
-Not the production entry point.
+`chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure. Once the POST
+passes it hands off to the rangefinding loop below. Not the production entry point.
+
+## Rangefinding loop
+
+`main/rangefinder_loop.{c,h}` - after the POST passes, `rangefinder_run()` configures the sensor
+and streams distance to the console:
+
+1. `ch_meas_init()` (ODR = fop/8) + `icu_gpt_algo_init()` / `icu_gpt_algo_configure()` (1 target,
+   ringdown cancel, detection thresholds).
+2. Measurement queue: `ch_meas_add_segment_tx()` (burst) -> `ch_meas_add_segment_count()`
+   (settle) -> `ch_meas_add_segment_rx()` (listen, done-interrupt on the last segment) ->
+   `ch_meas_write_config()`; then `ch_set_algo_config()` / `ch_init_algo()`.
+3. `ch_set_max_range(5000)` (5 m one-way, trims the RX sample count),
+   `ch_set_freerun_interval(100)` (10 Hz), `ch_set_mode(CH_MODE_FREERUN)`.
+4. Data-ready: the BSP's `bsp_int_task` calls the registered callback (`ch_io_int_callback_set`)
+   at task level; it does `ch_get_range(dev, CH_RANGE_ECHO_ONE_WAY)` (single sensor, pulse-echo)
+   and hands the value to the print loop. `ch_get_range()` returns millimetres x 32, or
+   `CH_NO_TARGET`.
+
+The transmit/receive/threshold values in `rangefinder_loop.c` are bring-up starting points and
+will likely need tuning on the bench (each `#define` has a note). The 5 m range and 10 Hz
+interval are fixed by the requirement.
 
 ### Running it
 
@@ -37,8 +58,9 @@ cd src/apps/hardware_bringup
 `build.sh` mounts the repo `src/` dir so the shared components under `src/components/`
 resolve, passes args through to `idf.py`, and auto-adds the serial device's group
 (`--device` / `--group-add`) because the host user is not in the `uucp` group and cannot open
-`/dev/ttyUSB0` directly. Console is UART0 (USB serial) at 115200; watch the `bringup` / `POST`
-log tags.
+`/dev/ttyUSB0` directly. Console is UART0 (USB serial) at 115200; watch the `bringup` / `POST` /
+`rangefinder` log tags. After the POST passes you should see `rangefinder: #N  <dist> mm` lines
+(or `no target`) at ~10 Hz.
 
 ## Hardware notes captured during bring-up
 
@@ -72,18 +94,21 @@ defined(INCLUDE_WHITNEY_SUPPORT)` in every transport function (`ch_driver.c`). F
 `esp32_bsp_internal.h` and `icu_post.c` now carry an `#error` guard that fails the build if
 `INCLUDE_SHASTA_SUPPORT` is missing (or `INCLUDE_WHITNEY_SUPPORT` is also set).
 
-## Status (2026-09-05)
+## Status (2026-09-06)
 
-**The POST passes on hardware** - all three stages. Getting there turned up and fixed:
+**POST passes on hardware** (all three stages). Free-running rangefinding loop is written and
+builds; **not yet run on hardware**. Fixes made along the way:
 
 - FFC pinout in the datasheet was mirrored - the connector had to be rewired 1<->12, 2<->11, ...
 - SPI mode 0 -> 3 (DS-000478 / AN-000357).
 - INT1/INT2 role swap: INT1 = trigger (`CHIRP_SENSOR_TRIG_PIN=1`), INT2 = data-ready
   (`CHIRP_SENSOR_INT_PIN=2`).
-- `USE_DEFERRED_INTERRUPT_PROCESSING` - without it, the GPIO ISR ran SPI-heavy
-  `chdrv_int_callback_deferred()` inline in ISR context and hit an interrupt-watchdog panic.
+- Interrupt handling: the GPIO ISR now only notifies `bsp_int_task`, which runs `ch_interrupt()`
+  at task level (`USE_DEFERRED_INTERRUPT_PROCESSING` removed). Fixes the earlier
+  interrupt-watchdog panic from doing SPI in ISR context. See "Interrupt handling" in
+  `board_support_package.md`.
 - `CH_LOG_MODULE_LEVEL` ERROR -> INFO so SonicLib's discovery/programming steps show on the
   console.
 
-Next: the real measurement loop (see `TODO.md`). It must wake a task from the INT2 ISR (via the
-BSP event group) and do range readout there, never in the ISR.
+Next: flash and run the rangefinding loop; tune the transmit/receive/threshold values in
+`rangefinder_loop.c` against real targets (see `TODO.md`).

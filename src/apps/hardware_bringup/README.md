@@ -17,8 +17,16 @@ any app can call `post_run()` at boot regardless of BSP/wiring changes.
 | 3. Sensor identity | reads part number / serial / fw version / operating frequency / RTC cal result and sanity-checks them | The programmed sensor reports sane values (part `20201`, f_op ~85 kHz) |
 
 `main/post_main.c` is the bring-up harness: it does `ch_group_init` -> `ch_init` ->
-`chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure, then idles.
-It is **not** the production `app_main`.
+`chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure. Once the POST
+passes it calls `rangefinder_run()` (below). It is **not** the production `app_main`.
+
+## Rangefinding loop — `main/rangefinder_loop.{c,h}`
+
+`rangefinder_run()` configures the sensor for **free-running mode at 5 m** full-scale range
+(10 Hz) and prints each measured one-way distance to the console (`rangefinder: #N <dist> mm`, or
+`no target`). The transmit/receive/threshold `#define`s at the top of `rangefinder_loop.c` are
+bring-up starting points to tune on the bench. Data-ready is handled from the BSP's `bsp_int_task`
+(task level), so the callback reads `ch_get_range()` directly.
 
 ### API
 

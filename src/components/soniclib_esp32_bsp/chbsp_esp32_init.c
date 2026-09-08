@@ -16,6 +16,10 @@ ch_group_t *bsp_grp_ptr                = NULL;
 spi_device_handle_t bsp_spi_handle     = NULL;
 uint8_t *bsp_spi_scratch               = NULL;
 EventGroupHandle_t bsp_event_group     = NULL;
+TaskHandle_t bsp_int_task_handle       = NULL;
+
+#define BSP_INT_TASK_STACK    4096
+#define BSP_INT_TASK_PRIORITY (configMAX_PRIORITIES - 3) /* well above application tasks */
 
 static esp_err_t init_gpio(void) {
 	/* Sensor INT2 line (BSP_PIN_INT2) carries the data-ready interrupt - CHIRP_SENSOR_INT_PIN=2 */
@@ -98,6 +102,13 @@ esp_err_t chbsp_esp32_init(ch_group_t *grp_ptr) {
 
 	bsp_event_group = xEventGroupCreate();
 	if (bsp_event_group == NULL) return ESP_ERR_NO_MEM;
+
+	/* Task that runs ch_interrupt() at task level; the INT2 GPIO ISR only notifies it. */
+	if (xTaskCreate(bsp_int_task, "bsp_int", BSP_INT_TASK_STACK, NULL, BSP_INT_TASK_PRIORITY,
+	                &bsp_int_task_handle) != pdPASS) {
+		ESP_LOGE(TAG, "bsp_int_task create failed");
+		return ESP_ERR_NO_MEM;
+	}
 
 	return ESP_OK;
 }

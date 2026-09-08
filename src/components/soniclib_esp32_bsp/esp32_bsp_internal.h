@@ -23,13 +23,14 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "freertos/event_groups.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Pin assignments - see rangefinder_client.kicad_sch / rangefinder_master_beacon.kicad_sch */
+/* Pin assignments - see CAD/Rangefinder_test_schematic_v3 */
 #define BSP_PIN_SPI_MOSI GPIO_NUM_23
 #define BSP_PIN_SPI_MISO GPIO_NUM_19
 #define BSP_PIN_SPI_SCLK GPIO_NUM_18
@@ -52,12 +53,21 @@ extern spi_device_handle_t bsp_spi_handle;
  * depend on the caller's buffer being DMA-capable. */
 extern uint8_t *bsp_spi_scratch;
 
-/*!< Signals chbsp_event_wait() from chbsp_event_notify() (called in ISR context from ch_interrupt()). */
+/*!< Signals chbsp_event_wait() from chbsp_event_notify(). Set from bsp_int_task (task context),
+ * not from an ISR - see the interrupt note below. */
 extern EventGroupHandle_t bsp_event_group;
 
-/*!< GPIO ISR handler for BSP_PIN_INT2 (data-ready interrupt), defined in esp32_bsp.c and attached
- * to the pin by chbsp_esp32_init(). */
+/*!< Task that runs SonicLib's ch_interrupt() at task level. The GPIO ISR only notifies it; see
+ * bsp_int_task() in esp32_bsp.c for why (chdrv_int_callback_deferred() does blocking SPI). Created
+ * by chbsp_esp32_init(). */
+extern TaskHandle_t bsp_int_task_handle;
+
+/*!< GPIO ISR handler for BSP_PIN_INT2 (data-ready). Only gives a notification to bsp_int_task_handle;
+ * defined in esp32_bsp.c, attached to the pin by chbsp_esp32_init(). */
 void bsp_int2_isr_handler(void *arg);
+
+/*!< The bsp_int_task body, defined in esp32_bsp.c, started by chbsp_esp32_init(). */
+void bsp_int_task(void *arg);
 
 #ifdef __cplusplus
 }

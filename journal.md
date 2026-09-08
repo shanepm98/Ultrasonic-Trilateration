@@ -1,6 +1,11 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-6-2026
+- Housekeeping: restructured the repo into `src/components/` (invn-soniclib, soniclib_esp32_bsp, icu_post) + `src/apps/hardware_bringup/`; dropped ~1400 committed build artifacts from git. Docs/paths updated. Builds verified.
+- Wrote the free-running rangefinding loop (`src/apps/hardware_bringup/main/rangefinder_loop.c`): builds a measurement queue, configures icu_gpt algo + thresholds, `ch_set_max_range(5000)`, `ch_set_freerun_interval(100)`, `ch_set_mode(CH_MODE_FREERUN)`, prints `ch_get_range()` from the data-ready callback. Builds clean; not yet run on hardware. TX/RX/threshold values are starting guesses to tune on the bench.
+- BSP interrupt refactor: GPIO ISR now only notifies a dedicated task (`bsp_int_task`) which calls `ch_interrupt()` at task level; removed `USE_DEFERRED_INTERRUPT_PROCESSING`. This is the proper fix for the earlier "SPI in ISR context" watchdog panic and makes the runtime data-ready callback work.
+
 ## 9-5-2026
 - Fixed FFC cable wiring problem (all pins mirrored- 12 should be 1, 11 should be 2, 10 should be 3, etc) and got POST running and passing successfully
 - The BSP (`src/soniclib_esp32_bsp`) and the power-on self-test (`src/hardware_bringup`) build

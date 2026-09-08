@@ -20,13 +20,11 @@ idf_component_register(
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
     INVN_SONICLIB_INTERNAL_BOARD_CONFIG
     INCLUDE_SHASTA_SUPPORT
-    # The BSP's GPIO ISR calls ch_interrupt(). Without this, chdrv_int_callback() runs the
-    # SPI-heavy chdrv_int_callback_deferred() inline in ISR context, where the BSP's blocking
-    # spi_device_transmit() deadlocks -> "Interrupt wdt timeout ... running in ISR context".
-    # With it, the ISR only does gpio_intr_disable() + xEventGroupSetBitsFromISR(); the deferred
-    # SPI work runs at task level from SonicLib's own event_wait() during ch_group_start(), and
-    # from the application's measurement task afterward.
-    USE_DEFERRED_INTERRUPT_PROCESSING
+    # Interrupts: the BSP's GPIO ISR does NOT call ch_interrupt() - it notifies a dedicated
+    # FreeRTOS task (bsp_int_task in esp32_bsp.c) which calls ch_interrupt() at task level, so the
+    # SPI-heavy chdrv_int_callback_deferred() runs where blocking spi_device_transmit() is legal.
+    # USE_DEFERRED_INTERRUPT_PROCESSING is therefore intentionally left undefined (it only matters
+    # when the ISR itself calls ch_interrupt()).
     CHIRP_MAX_NUM_SENSORS=1
     CHIRP_NUM_BUSES=1
     CHIRP_SENSOR_INT_PIN=2
