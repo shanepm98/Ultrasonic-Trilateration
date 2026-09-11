@@ -31,6 +31,21 @@ AN-000175 §2.4/§2.7.
 - [ ] Consider whether `icu_post`'s `post_run()` still applies as-is for a receive-only sensor
       (stage 3 identity checks should be fine; no measurement config assumptions to revisit).
 
+## Wireless synchronization system
+In the hardware tests with the V3 revision of the PCB, the sensor trigger lines are hardwired together between the boards.
+The next step is to research and develop a wireless system for coordinating all sensors with precision. One promising option
+is the ESP-NOW protocol for synchronizing timestamps between boards (e.g, Flooding time synchronization protocol, FTSP),
+and then agreeing on a trigger time.
+
+## Sensor tuning/calibration
+The currently defined sensor thresholds and parameters are just placeholders for testing the hardware.
+To improve the performance of the sensors, they need to be bench-calibrated. An interactive application will
+be written to tune these values live, without recompilation, by resetting and reconfiguring the sensor at runtime.
+This program should be run on multiple boards at once and get feedback from other boards wirelessy.
+
+## Self-mapping relative coordinate system
+The stationary beacons should be able to coordinate with each other and use distance from one another to establish their own local,
+relative coordinate system in which to locate the mobile client. More research needed into the feasibility of this.
 
 ## PCB Design
 - [ ] Change the terminology used on the solder bridges
