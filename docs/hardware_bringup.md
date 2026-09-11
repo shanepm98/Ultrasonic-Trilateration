@@ -16,7 +16,8 @@ SonicLib board support package in `src/components/soniclib_esp32_bsp`. The first
 The `icu_post` component (`src/components/icu_post/`, `icu_post.{c,h}`) - a reusable,
 SonicLib-level module (no direct esp-idf calls beyond `esp_log`) so any app can call `post_run()`
 at boot regardless of BSP or wiring changes. All hardware access goes through the `chbsp_*`
-callbacks the BSP implements.
+callbacks the BSP implements. See `src/components/icu_post/README.md` for the API summary and
+`docs/icu_post.md` for the full stage-by-stage reference.
 
 | Stage | Call | Pass means |
 |---|---|---|

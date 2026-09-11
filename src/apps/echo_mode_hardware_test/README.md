@@ -8,13 +8,9 @@ It consumes the shared components in `../../components/`: `soniclib_esp32_bsp` (
 
 `../../components/icu_post/` (`icu_post.{c,h}`) — a modular, reusable check that the ESP32 can
 talk to the sensor over SPI. SonicLib-level only (no direct esp-idf calls beyond `esp_log`), so
-any app can call `post_run()` at boot regardless of BSP/wiring changes.
-
-| Stage | What it does | What a pass proves |
-|---|---|---|
-| 1. SPI link | `chdrv_prog_ping()` - resets the sensor via its `SYS_CTRL` register and reads back `CPU_ID_HI` over SPI, checking it equals `SHASTA_CPU_ID_HI_VALUE` (0x2041) | Wiring, chip-select, **SPI mode 3**, bit order and framing are all correct |
-| 2. Program + start | `ch_group_start()` then `ch_sensor_is_connected()` | Firmware downloads, frequency locks, RTC calibrates |
-| 3. Sensor identity | reads part number / serial / fw version / operating frequency / RTC cal result and sanity-checks them | The programmed sensor reports sane values (part `20201`, f_op ~85 kHz) |
+any app can call `post_run()` at boot regardless of BSP/wiring changes. See
+`../../components/icu_post/README.md` for the API summary and `../../../docs/icu_post.md` for the
+full stage-by-stage reference.
 
 `main/post_main.c` is the bring-up harness: it does `ch_group_init` -> `ch_init` ->
 `chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure. Once the POST
@@ -27,16 +23,6 @@ passes it calls `rangefinder_run()` (below). It is **not** the production `app_m
 `no target`). The transmit/receive/threshold `#define`s at the top of `rangefinder_loop.c` are
 bring-up starting points to tune on the bench. Data-ready is handled from the BSP's `bsp_int_task`
 (task level), so the callback reads `ch_get_range()` directly.
-
-### API
-
-```c
-post_config_t cfg;
-post_config_default(&cfg);          // full test; set cfg.run_group_start = false for SPI-only
-post_result_t res;
-bool ok = post_run(&grp, &dev, &cfg, &res);
-post_report(&res);                  // dump the result table to the console any time
-```
 
 ## Build / flash / monitor
 
