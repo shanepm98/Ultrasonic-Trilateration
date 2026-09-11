@@ -21,15 +21,34 @@ real hardware (2026-09-10).**
 
 ## Pitch-catch mode hardware test
 
-`src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` - scaffolded (empty), not yet
-implemented. Two sensors: one `CH_MODE_TRIGGERED_TX_RX` (sender), one
+`src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` - **implemented (2026-09-11), not yet
+validated on hardware.** Two sensors: one `CH_MODE_TRIGGERED_TX_RX` (sender), one
 `CH_MODE_TRIGGERED_RX_ONLY` (receiver), synchronized via the shared INT1 trigger wire between
 boards (see PCB v3 note below). Free-running mode cannot be used for multi-sensor sync - see
-AN-000175 §2.4/§2.7.
-- [ ] Build out `sender`/`receiver` apps, reusing `src/components/{invn-soniclib,
-      soniclib_esp32_bsp,icu_post}` the same way `echo_mode_hardware_test` does.
-- [ ] Consider whether `icu_post`'s `post_run()` still applies as-is for a receive-only sensor
-      (stage 3 identity checks should be fine; no measurement config assumptions to revisit).
+AN-000175 §2.4/§2.7. Reuses `src/components/{invn-soniclib,soniclib_esp32_bsp,icu_post}` the same
+way `echo_mode_hardware_test` does. See `src/apps/pitch_catch_mode_hardware_test/README.md` for
+the full architecture writeup.
+- [x] `post_run()` confirmed sensor-agnostic (stage 3 identity checks don't assume TX/RX role) -
+      reused unmodified by both apps.
+- Architecture notes (see README for detail):
+  - **Receiver owns the trigger loop**, not the sender - inverts AN-000175's typical pattern.
+    The receiver calls `ch_group_trigger()` on a fixed cadence, which fires both sensors over the
+    shared INT1 wire, so it knows its own trigger instant with zero communication latency.
+  - **Sender-ready handshake**: the sender's sensor INT2 is additionally wired to the receiver's
+    GPIO33 (plain digital input, not through the BSP), which the receiver checks before each
+    retrigger instead of firing blind on a timer.
+  - **Common header**: `src/apps/pitch_catch_mode_hardware_test/include/pitch_catch_common.h`
+    holds every cross-board-critical constant (TX burst timing, ODR, max range, trigger cadence,
+    the GPIO33 pin) as a single source of truth, instead of hand-synced `#define`s in each app.
+- [ ] Deferred: frequency matching across the two independently-calibrated sensors -
+      `ch_group_set_frequency(CH_OP_FREQ_USE_AVG)` only works within one shared `ch_group_t`, not
+      across two separate boards. No cross-board equivalent implemented.
+- [ ] Deferred: `ch_set_rx_pretrigger()` (600us ringdown-settle convenience) is likewise scoped to
+      one shared `ch_group_t` and unusable cross-board as-is.
+- [ ] First on-hardware pitch-catch run: tune `RX_*`/threshold values on both boards
+      independently, verify INT1 and GPIO33 wiring continuity, validate `CH_RANGE_DIRECT` against
+      a tape-measure baseline, confirm the GPIO33 readiness gate actually prevents
+      double-triggering when the sender responds slowly.
 
 ## Wireless synchronization system
 In the hardware tests with the V3 revision of the PCB, the sensor trigger lines are hardwired together between the boards.

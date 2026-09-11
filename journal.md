@@ -1,6 +1,32 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-11-2026
+- Implemented `src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` (previously an empty
+  scaffold). Both build clean independently in the Docker toolchain; not yet run on hardware.
+- Key design decision, settled through discussion before writing code: the **receiver** owns the
+  periodic trigger loop (`ch_group_trigger()`), not the sender - inverts SonicLib's "typical"
+  AN-000175 pattern. The receiver is the fixed beacon and knows its own trigger instant exactly
+  (no communication latency), which matters for time-of-flight. The sender never calls any
+  trigger function; it configures `CH_MODE_TRIGGERED_TX_RX` once and idles.
+- Added a second physical link, sender's INT2 (data-ready) -> receiver's GPIO33, so the receiver
+  can check the sender is actually done with its previous measurement before retriggering, instead
+  of firing blind on a fixed timer. Read directly via `driver/gpio.h`/`esp_driver_gpio`, not
+  through the BSP (which is scoped to a board's own local sensor).
+- Source-verification correction while planning: `CH_MODE_TRIGGERED_TX_RX` is not TX-only - per
+  AN-000175 the sender still listens for its own echo, so its measurement queue needs a full
+  TX+settle+RX segment set, same shape as the echo-mode app. The receiver, being RX-only, uses a
+  count segment (sized to match the sender's TX burst duration) instead of a TX segment.
+- Added `include/pitch_catch_common.h`, a header shared by both independent app builds
+  (`INCLUDE_DIRS "../../include"`), holding every cross-board-critical constant (TX burst timing,
+  ODR, max range, trigger cadence, the GPIO33 pin) as a single source of truth, instead of
+  hand-synced `#define`s that could silently drift apart.
+- Deferred (documented in the new README and TODO.md, not implemented): frequency matching and
+  `ch_set_rx_pretrigger()` across the two independently-calibrated sensors - both only work within
+  one shared `ch_group_t`, which doesn't exist across two separate boards.
+- Next: get both boards on the bench, verify INT1/GPIO33 wiring continuity, tune RX gain/
+  thresholds per sensor, and validate `CH_RANGE_DIRECT` against a tape-measure baseline.
+
 ## 9-10-2026
 - The free-running echo-mode rangefinding loop ran successfully on real hardware - POST + rangefinding both verified working end to end.
 - Renamed `src/apps/hardware_bringup` -> `src/apps/echo_mode_hardware_test` and added a `src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` scaffold for the next milestone (two-sensor triggered pitch-catch). Docs/TODO/CLAUDE.md paths updated to match.
