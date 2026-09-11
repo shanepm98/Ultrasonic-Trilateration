@@ -84,7 +84,7 @@ void app_main(void) {
 ```
 
 To use the BSP from another app, point that app's `EXTRA_COMPONENT_DIRS` at `src/components/`
-(see `src/apps/hardware_bringup/CMakeLists.txt`) and add `soniclib_esp32_bsp` to your component's
+(see `src/apps/echo_mode_hardware_test/CMakeLists.txt`) and add `soniclib_esp32_bsp` to your component's
 `REQUIRES`. It brings `invn-soniclib` in transitively.
 
 ## What's implemented vs. not
@@ -118,7 +118,7 @@ serves both `ch_group_start()` and normal measurements, so `USE_DEFERRED_INTERRU
 
 An application registers its data-ready callback with `ch_io_int_callback_set()`; SonicLib invokes
 it from `bsp_int_task` context, so it may call `ch_get_range()` etc. directly (see
-`src/apps/hardware_bringup/main/rangefinder_loop.c`).
+`src/apps/echo_mode_hardware_test/main/rangefinder_loop.c`).
 
 One deliberate deviation from the "obvious" FreeRTOS approach: `chbsp_delay_ms()` busy-waits
 (`esp_rom_delay_us()`) rather than calling `vTaskDelay()`. `CONFIG_FREERTOS_HZ=100` gives only
@@ -130,4 +130,4 @@ calibration, not during normal measurement.
 ## Building
 
 The BSP is a component, not a standalone project - it is built as part of whichever app pulls it
-in. `cd src/apps/hardware_bringup && ./build.sh` exercises it.
+in. `cd src/apps/echo_mode_hardware_test && ./build.sh` exercises it.

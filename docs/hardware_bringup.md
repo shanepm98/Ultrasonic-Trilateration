@@ -1,7 +1,9 @@
 # Hardware bring-up
 
-App: `src/apps/hardware_bringup` (ESP-IDF). See `src/apps/hardware_bringup/README.md` for the
-full API / build reference; this doc is the higher-level explanation and the current status.
+App: `src/apps/echo_mode_hardware_test` (ESP-IDF; renamed from `hardware_bringup` once the POST
+and echo/pulse-echo rangefinding loop were both verified working, to distinguish it from the
+sibling `pitch_catch_mode_hardware_test`). See `src/apps/echo_mode_hardware_test/README.md` for
+the full API / build reference; this doc is the higher-level explanation and the current status.
 
 ## Purpose
 
@@ -50,7 +52,7 @@ interval are fixed by the requirement.
 ### Running it
 
 ```sh
-cd src/apps/hardware_bringup
+cd src/apps/echo_mode_hardware_test
 ./build.sh                              # build only (espressif/idf Docker image)
 ./build.sh -p /dev/ttyUSB0 -b 115200 flash monitor
 ```
@@ -94,10 +96,12 @@ defined(INCLUDE_WHITNEY_SUPPORT)` in every transport function (`ch_driver.c`). F
 `esp32_bsp_internal.h` and `icu_post.c` now carry an `#error` guard that fails the build if
 `INCLUDE_SHASTA_SUPPORT` is missing (or `INCLUDE_WHITNEY_SUPPORT` is also set).
 
-## Status (2026-09-06)
+## Status (2026-09-10)
 
-**POST passes on hardware** (all three stages). Free-running rangefinding loop is written and
-builds; **not yet run on hardware**. Fixes made along the way:
+**POST and the free-running echo-mode rangefinding loop are both verified working on real
+hardware.** App renamed `hardware_bringup` -> `echo_mode_hardware_test` to distinguish it from
+the new (scaffolded, not yet implemented) `pitch_catch_mode_hardware_test`. Fixes made along the
+way to get here:
 
 - FFC pinout in the datasheet was mirrored - the connector had to be rewired 1<->12, 2<->11, ...
 - SPI mode 0 -> 3 (DS-000478 / AN-000357).
@@ -110,5 +114,5 @@ builds; **not yet run on hardware**. Fixes made along the way:
 - `CH_LOG_MODULE_LEVEL` ERROR -> INFO so SonicLib's discovery/programming steps show on the
   console.
 
-Next: flash and run the rangefinding loop; tune the transmit/receive/threshold values in
-`rangefinder_loop.c` against real targets (see `TODO.md`).
+Next: tune the transmit/receive/threshold values in `rangefinder_loop.c` against real targets,
+then start on `pitch_catch_mode_hardware_test` (see `TODO.md`).

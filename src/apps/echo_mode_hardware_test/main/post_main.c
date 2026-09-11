@@ -5,7 +5,7 @@
  * FFC / wiring can be re-seated and watched for recovery.
  *
  * This is a bring-up harness, not the production application - it only builds as part of the
- * src/apps/hardware_bringup app.
+ * src/apps/echo_mode_hardware_test app (echo/pulse-echo mode; pitch-catch has its own app).
  */
 
 #include <inttypes.h>

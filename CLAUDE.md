@@ -14,7 +14,11 @@ DevKitV1 over SPI, using TDK's SonicLib.
     only, no esp-idf/BSP calls beyond `esp_log`. Any app can call it at boot.
 - `src/apps/<name>/` - thin ESP-IDF projects. Each has `CMakeLists.txt` (sets
   `EXTRA_COMPONENT_DIRS` to `../../components`), `main/`, `sdkconfig.defaults`, `build.sh`.
-  - `hardware_bringup/` - flashes the POST and reports over serial. Not production firmware.
+  - `echo_mode_hardware_test/` - flashes the POST + free-running echo-mode (pulse-echo, single
+    sensor) rangefinding loop and reports over serial. Verified working on hardware. Not
+    production firmware.
+  - `pitch_catch_mode_hardware_test/{sender,receiver}` - two-sensor pitch-catch bring-up
+    (scaffolded, not yet implemented).
 - `docs/` - project documentation (theory, bring-up notes, BSP reference). `docs/datasheets/`
   holds the PDFs; `docs/vendor/` holds excerpts from TDK docs.
 - `CAD/` - schematics, PCB, gerbers. `pics/` - photos and rendered schematics.

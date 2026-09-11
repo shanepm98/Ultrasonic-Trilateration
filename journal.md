@@ -1,6 +1,10 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-10-2026
+- The free-running echo-mode rangefinding loop ran successfully on real hardware - POST + rangefinding both verified working end to end.
+- Renamed `src/apps/hardware_bringup` -> `src/apps/echo_mode_hardware_test` and added a `src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` scaffold for the next milestone (two-sensor triggered pitch-catch). Docs/TODO/CLAUDE.md paths updated to match.
+
 ## 9-6-2026
 - Housekeeping: restructured the repo into `src/components/` (invn-soniclib, soniclib_esp32_bsp, icu_post) + `src/apps/hardware_bringup/`; dropped ~1400 committed build artifacts from git. Docs/paths updated. Builds verified.
 - Wrote the free-running rangefinding loop (`src/apps/hardware_bringup/main/rangefinder_loop.c`): builds a measurement queue, configures icu_gpt algo + thresholds, `ch_set_max_range(5000)`, `ch_set_freerun_interval(100)`, `ch_set_mode(CH_MODE_FREERUN)`, prints `ch_get_range()` from the data-ready callback. Builds clean; not yet run on hardware. TX/RX/threshold values are starting guesses to tune on the bench.

@@ -10,7 +10,7 @@ set -e
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)   # .../src
-app_rel=${script_dir#"$src_dir"/}                     # apps/hardware_bringup
+app_rel=${script_dir#"$src_dir"/}                     # apps/echo_mode_hardware_test
 port="${PORT:-/dev/ttyUSB0}"
 
 if [ "$#" -eq 0 ]; then

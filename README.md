@@ -8,7 +8,7 @@ This is essentially a small-scale, localized analog of GPS, but using ultrasonic
 - `docs/` contains all documentation for the project. Theory of operation, results of testing, assembly instructions, etc. `docs/datasheets/` holds component datasheets.
 - `src/` contains all source code and firmware:
   - `src/components/` - reusable ESP-IDF components: `invn-soniclib` (vendored SonicLib), `soniclib_esp32_bsp` (the ESP32 board support package for SonicLib), `icu_post` (power-on self-test).
-  - `src/apps/` - firmware applications that consume those components (e.g. `hardware_bringup`).
+  - `src/apps/` - firmware applications that consume those components (e.g. `echo_mode_hardware_test`).
 - `CAD/` contains all electronics schematics, PCB files, and any relevant 3D CAD files
 - `pics/` contains pictures of the project
 
