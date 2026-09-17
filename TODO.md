@@ -60,7 +60,8 @@ and then agreeing on a trigger time.
 The currently defined sensor thresholds and parameters are just placeholders for testing the hardware.
 To improve the performance of the sensors, they need to be bench-calibrated. An interactive application will
 be written to tune these values live, without recompilation, by resetting and reconfiguring the sensor at runtime.
-This program should be run on multiple boards at once and get feedback from other boards wirelessy.
+This program should be run on multiple boards at once and get feedback from other boards wirelessly.
+
 
 ## Self-mapping relative coordinate system
 The stationary beacons should be able to coordinate with each other and use distance from one another to establish their own local,
