@@ -10,3 +10,8 @@ managed_components/
 
 # Kicad stuff that's already compressed
 CAD/Rangefinder_test_schematic_v3/
+
+# Python (automated_tuning/host/)
+__pycache__/
+*.pyc
+.venv/

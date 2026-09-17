@@ -154,24 +154,35 @@ at_status_t at_cfg_meas_init(const uint8_t *body, uint8_t *resp, uint8_t *resp_l
     return err ? AT_STATUS_ERR : AT_STATUS_OK;
 }
 
+/* Stages a segment into staged_segments[] for ESP-NOW relay to the transmitter. Never touches
+ * g_dev - staged_segments[] exclusively describes the transmitter's queue (see the target-field
+ * design note next to at_call_add_segment_tx_t in at_protocol.h). Returns AT_STATUS_ERR without
+ * staging if AT_MAX_SEGMENTS is already reached. */
+static at_status_t stage_remote_segment(at_seg_type_t type, uint16_t p0, uint8_t p1, uint8_t p2,
+                                         uint8_t int_enable) {
+    if (staged_num_segments >= AT_MAX_SEGMENTS) {
+        return AT_STATUS_ERR;
+    }
+    at_segment_t *s = &staged_segments[staged_num_segments++];
+    s->seg_type   = type;
+    s->int_enable = int_enable;
+    s->p0         = p0;
+    s->p1         = p1;
+    s->p2         = p2;
+    return AT_STATUS_OK;
+}
+
 at_status_t at_cfg_add_segment_tx(const uint8_t *body, uint8_t *resp, uint8_t *resp_len) {
     const at_call_add_segment_tx_t *b = (const at_call_add_segment_tx_t *)body;
     (void)resp;
     *resp_len = 0;
 
-    if (staged_num_segments >= AT_MAX_SEGMENTS) {
+    if (b->target == AT_SEG_TARGET_LOCAL) {
+        /* The receiver is always RX-only in this app's fixed pitch-catch role - a TX segment
+         * never belongs on its own sensor. Reject rather than silently misapplying it. */
         return AT_STATUS_ERR;
     }
-    uint8_t err = ch_meas_add_segment_tx(g_dev, b->meas_num, b->num_cycles, b->pulse_width, b->phase, b->int_enable);
-    if (err == 0) {
-        at_segment_t *s = &staged_segments[staged_num_segments++];
-        s->seg_type   = AT_SEG_TX;
-        s->int_enable = b->int_enable;
-        s->p0         = b->num_cycles;
-        s->p1         = b->pulse_width;
-        s->p2         = b->phase;
-    }
-    return err ? AT_STATUS_ERR : AT_STATUS_OK;
+    return stage_remote_segment(AT_SEG_TX, b->num_cycles, b->pulse_width, b->phase, b->int_enable);
 }
 
 at_status_t at_cfg_add_segment_rx(const uint8_t *body, uint8_t *resp, uint8_t *resp_len) {
@@ -179,18 +190,14 @@ at_status_t at_cfg_add_segment_rx(const uint8_t *body, uint8_t *resp, uint8_t *r
     (void)resp;
     *resp_len = 0;
 
-    if (staged_num_segments >= AT_MAX_SEGMENTS) {
-        return AT_STATUS_ERR;
+    if (b->target == AT_SEG_TARGET_REMOTE) {
+        return stage_remote_segment(AT_SEG_RX, b->num_samples, b->gain_reduce, b->atten, b->int_enable);
     }
-    uint8_t err = ch_meas_add_segment_rx(g_dev, b->meas_num, b->num_samples, b->gain_reduce, b->atten, b->int_enable);
-    if (err == 0) {
-        at_segment_t *s = &staged_segments[staged_num_segments++];
-        s->seg_type   = AT_SEG_RX;
-        s->int_enable = b->int_enable;
-        s->p0         = b->num_samples;
-        s->p1         = b->gain_reduce;
-        s->p2         = b->atten;
-    }
+    /* AT_SEG_TARGET_LOCAL: apply directly to the receiver's own sensor. Not staged - the
+     * receiver's local queue and the transmitter's relayed queue are independent (COUNT+RX here
+     * vs TX+COUNT+RX there), see at_protocol.h's target-field design note. */
+    uint8_t err = ch_meas_add_segment_rx(g_dev, b->meas_num, b->num_samples, b->gain_reduce, b->atten,
+                                          b->int_enable);
     return err ? AT_STATUS_ERR : AT_STATUS_OK;
 }
 
@@ -199,18 +206,10 @@ at_status_t at_cfg_add_segment_count(const uint8_t *body, uint8_t *resp, uint8_t
     (void)resp;
     *resp_len = 0;
 
-    if (staged_num_segments >= AT_MAX_SEGMENTS) {
-        return AT_STATUS_ERR;
+    if (b->target == AT_SEG_TARGET_REMOTE) {
+        return stage_remote_segment(AT_SEG_COUNT, b->num_cycles, 0, 0, b->int_enable);
     }
     uint8_t err = ch_meas_add_segment_count(g_dev, b->meas_num, b->num_cycles, b->int_enable);
-    if (err == 0) {
-        at_segment_t *s = &staged_segments[staged_num_segments++];
-        s->seg_type   = AT_SEG_COUNT;
-        s->int_enable = b->int_enable;
-        s->p0         = b->num_cycles;
-        s->p1         = 0;
-        s->p2         = 0;
-    }
     return err ? AT_STATUS_ERR : AT_STATUS_OK;
 }
 

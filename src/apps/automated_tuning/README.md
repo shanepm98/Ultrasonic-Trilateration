@@ -39,11 +39,16 @@ not clear-text, since only a program talks to either link:
 - **ESP-NOW link**: the receiver pushes one complete `at_config_snapshot_t` per tuning iteration (not a
   per-call relay), so a dropped packet can never leave the transmitter in a half-updated state.
 
+The receiver's own local sensor (always RX-only) and the transmitter's relayed sensor (always
+TX+RX) need independently-built segment lists, so every `AT_OP_ADD_SEGMENT_*` call carries a
+`target` (`LOCAL` = apply directly to the receiver's own sensor, `REMOTE` = stage only, relayed
+to the transmitter) - see `at_seg_target_t` in `at_protocol.h` (`AT_PROTOCOL_VERSION` 2).
+
 See the header comments in `at_protocol.h` for the full opcode table, wire layouts, and the reasoning
 behind each design choice (framing, snapshot-vs-incremental relay, versioning).
 
 ## Tuning algorithm
-The automatic-mode search the control script (not yet written) will run is designed in
+The automatic-mode search the control script runs (`host/tuner.py`) is designed in
 `host/tuning_algorithm.md`. It's a staged, physically-informed coordinate-wise search, not a
 generic optimizer: each real trial costs real time on physical hardware, so the design tunes one
 group of related parameters at a time (ODR, then TX drive strength, then TX phase, then RX
@@ -57,11 +62,24 @@ with the ringdown it's meant to filter out.
 See `host/tuning_algorithm.md` for the full trial protocol, acceptance-gate thresholds, per-stage
 search procedures, and the `configs/<N>meter.config` JSON output schema.
 
+## Running the control script
+
+```sh
+cd host
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python3 tuner.py --port /dev/ttyUSB0
+```
+
+Run `pytest tests/` inside the venv to run the offline test suite (COBS framing, trial
+statistics/scoring, frame demuxing, the sample-index formula, and the JSON config schema - all
+hardware-independent; the staged search itself needs a live receiver to exercise for real).
+
 ## To-Do 
 - [x] Design the communication protocol for efficiently sharing configuration data from receiver to transmitter via ESP-NOW
 - [x] Design the low-level remote function call API exposed by the receiver over USB for allowing the host to configure the sensor
 - [x] Design the algorithm the control script will use for experimentally adjusting control values
-- [ ] Write the control python script 
+- [x] Write the control python script 
 - [x] Write the receiver firmware
 - [x] Write the transmitter firmware 
 - [ ] Test in hardware

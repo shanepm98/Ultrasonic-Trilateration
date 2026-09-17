@@ -28,7 +28,7 @@
  * on a mismatch; the transmitter drops (does not attempt to interpret) any ESP-NOW snapshot
  * whose proto_version doesn't match its own. No negotiation - this is a single-developer
  * bring-up tool, not a public API. */
-#define AT_PROTOCOL_VERSION 1u
+#define AT_PROTOCOL_VERSION 2u
 
 /* Protocol-level cap on segments per measurement, NOT a SonicLib limit (hardware max is
  * CH_MEAS_MAX_SEGMENTS = 32). Real pitch-catch usage today is 2-3 segments; 8 leaves headroom
@@ -80,9 +80,9 @@ typedef enum {
     AT_OP_HELLO             = 0x01, /* version handshake; empty call body, at_resp_hello_t response */
     AT_OP_MEAS_RESET        = 0x02, /* ch_meas_reset: clears the segment list; must precede rebuilding it */
     AT_OP_MEAS_INIT         = 0x03, /* ch_meas_init (+ internal icu_gpt_algo_init) */
-    AT_OP_ADD_SEGMENT_TX    = 0x04, /* ch_meas_add_segment_tx */
-    AT_OP_ADD_SEGMENT_RX    = 0x05, /* ch_meas_add_segment_rx */
-    AT_OP_ADD_SEGMENT_COUNT = 0x06, /* ch_meas_add_segment_count */
+    AT_OP_ADD_SEGMENT_TX    = 0x04, /* ch_meas_add_segment_tx; target must be AT_SEG_TARGET_REMOTE */
+    AT_OP_ADD_SEGMENT_RX    = 0x05, /* ch_meas_add_segment_rx; local or staged-for-relay per target */
+    AT_OP_ADD_SEGMENT_COUNT = 0x06, /* ch_meas_add_segment_count; local or staged-for-relay per target */
     AT_OP_MEAS_WRITE_CONFIG = 0x07, /* ch_meas_write_config; empty call body */
     AT_OP_SET_ODR           = 0x08, /* ch_meas_set_odr */
     AT_OP_SET_NUM_SAMPLES   = 0x09, /* ch_meas_set_num_samples */
@@ -135,8 +135,25 @@ typedef struct AT_PACKED {
     uint8_t  mode;
 } at_call_meas_init_t;
 
+/* The receiver's own local measurement queue and the transmitter's relayed queue are NOT the
+ * same list: this app's pitch-catch role split is fixed (receiver is always RX-only, owning a
+ * COUNT+RX queue; the transmitter is always TX+RX, owning a TX+COUNT+RX queue per AN-000175's
+ * "still transmits and listens for its own echo" requirement for CH_MODE_TRIGGERED_TX_RX), so
+ * one shared segment list can never describe both. Every AT_OP_ADD_SEGMENT_* call carries a
+ * target so the host can build each board's queue independently over the same three opcodes:
+ * AT_SEG_TARGET_LOCAL applies the segment directly to the receiver's own sensor and is never
+ * staged for relay; AT_SEG_TARGET_REMOTE only stages it into the snapshot relayed to the
+ * transmitter (see at_config_snapshot_t below) and never touches the receiver's own sensor. A
+ * TX segment only ever makes sense as AT_SEG_TARGET_REMOTE - the receiver has no local use for
+ * one and AT_OP_ADD_SEGMENT_TX with AT_SEG_TARGET_LOCAL is rejected (AT_STATUS_ERR). */
+typedef enum {
+    AT_SEG_TARGET_LOCAL  = 0,
+    AT_SEG_TARGET_REMOTE = 1,
+} at_seg_target_t;
+
 typedef struct AT_PACKED {
     uint8_t  meas_num;
+    uint8_t  target; /* at_seg_target_t; AT_SEG_TARGET_LOCAL is invalid for this opcode */
     uint16_t num_cycles;
     uint8_t  pulse_width;
     uint8_t  phase;
@@ -145,6 +162,7 @@ typedef struct AT_PACKED {
 
 typedef struct AT_PACKED {
     uint8_t  meas_num;
+    uint8_t  target; /* at_seg_target_t */
     uint16_t num_samples;
     uint8_t  gain_reduce;
     uint8_t  atten;
@@ -153,6 +171,7 @@ typedef struct AT_PACKED {
 
 typedef struct AT_PACKED {
     uint8_t  meas_num;
+    uint8_t  target; /* at_seg_target_t */
     uint16_t num_cycles;
     uint8_t  int_enable;
 } at_call_add_segment_count_t;

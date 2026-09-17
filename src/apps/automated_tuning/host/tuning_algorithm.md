@@ -349,24 +349,38 @@ can't fix a hardware fault.
 
 ## 6. Output format — `configs/<N>meter.config`
 
+**Schema correction (post-implementation):** the receiver's own local queue and the
+transmitter's ESP-NOW-relayed queue are independent — the receiver is always RX-only
+(`COUNT` + `RX_near` + `RX_far`), the transmitter is always `TX` + `COUNT`(settle) + `RX` (per
+AN-000175's requirement that `CH_MODE_TRIGGERED_TX_RX` still listens for its own echo). An
+earlier draft of this schema had one shared `segments[]` list plus a separate `tx_segment` dict,
+which can't represent both queues at once. The wire protocol was fixed to match (each
+`AT_OP_ADD_SEGMENT_*` call now carries a `target`: `LOCAL` applies directly to the receiver's own
+sensor, `REMOTE` only stages the segment for relay — see `at_protocol.h`'s `at_seg_target_t`,
+`AT_PROTOCOL_VERSION` bumped to 2), and the schema below reflects that fix directly:
+
 ```json
 {
   "schema_version": 1,
-  "protocol_version": 1,
+  "protocol_version": 2,
   "created_at": "2026-09-16T21:00:00Z",
   "true_distance_mm": 3000,
   "speed_of_sound_mps": 343,
   "passed_acceptance_gate": true,
   "warnings": [],
 
-  "measurement": { "meas_num": 0, "odr": 4, "meas_period": 0, "mode": 0 },
+  "measurement": { "meas_num": 0, "odr": 4, "meas_period": 0, "sensing_mode": 32 },
 
-  "segments": [
+  "receiver_segments": [
     { "type": "count", "num_cycles": 27, "int_enable": 0 },
     { "type": "rx", "num_samples": 20, "gain_reduce": 0, "atten": 2, "int_enable": 0 },
     { "type": "rx", "num_samples": 480, "gain_reduce": 8, "atten": 0, "int_enable": 1 }
   ],
-  "tx_segment": { "num_cycles": 27, "pulse_width": 3, "phase": 9, "int_enable": 1 },
+  "transmitter_segments": [
+    { "type": "tx", "num_cycles": 27, "pulse_width": 3, "phase": 9, "int_enable": 0 },
+    { "type": "count", "num_cycles": 18, "int_enable": 0 },
+    { "type": "rx", "num_samples": 340, "gain_reduce": 0, "atten": 0, "int_enable": 1 }
+  ],
   "max_range_mm": 5000,
 
   "algo": {
@@ -407,16 +421,19 @@ can't fix a hardware fault.
 }
 ```
 
-`tx_segment` and `segments[]` are kept separate even though `segments[0].num_cycles` (the
-receiver's count segment) must equal `tx_segment.num_cycles` — this makes the coupling explicit
-and machine-checkable at load time (`assert segments[0]["num_cycles"] ==
-tx_segment["num_cycles"]`) rather than silently duplicated data that could drift if hand-edited.
-`expected_target_sample_index_source` records whether §4a's formula needed the empirical
-correction — useful for diagnosing whether the sample↔mm formula assumption holds across units
-over time. This schema contains every value needed to replay the exact opcode sequence
-(`AT_OP_MEAS_RESET → AT_OP_MEAS_INIT → AT_OP_ADD_SEGMENT_* (once per entry in segments[], plus
-once on the transmitter for tx_segment) → AT_OP_MEAS_WRITE_CONFIG → AT_OP_SET_MAX_RANGE(_MEAS) →
-AT_OP_SET_THRESHOLDS → AT_OP_GPT_ALGO_CONFIGURE → AT_OP_SET_MODE`) with no re-derivation.
+`receiver_segments` and `transmitter_segments` are kept as separate lists even though
+`receiver_segments[0].num_cycles` (the receiver's COUNT segment) must equal
+`transmitter_segments[0].num_cycles` (the transmitter's TX segment) — this makes the coupling
+explicit and machine-checkable at load time (`assert receiver_segments[0]["num_cycles"] ==
+transmitter_segments[0]["num_cycles"]`) rather than silently duplicated data that could drift if
+hand-edited. `expected_target_sample_index_source` records whether §4a's formula needed the
+empirical correction — useful for diagnosing whether the sample↔mm formula assumption holds
+across units over time. This schema contains every value needed to replay the exact opcode
+sequence (`AT_OP_MEAS_RESET → AT_OP_MEAS_INIT → AT_OP_ADD_SEGMENT_*` for each entry in
+`receiver_segments` with `target=LOCAL`, then for each entry in `transmitter_segments` with
+`target=REMOTE` → `AT_OP_MEAS_WRITE_CONFIG → AT_OP_GPT_ALGO_CONFIGURE` (thresholds bundled in,
+so there's no separate `AT_OP_SET_THRESHOLDS` call needed or its last-call-wins ambiguity) →
+`AT_OP_SET_MAX_RANGE → AT_OP_SET_MODE`) with no re-derivation.
 
 ## 7. `ch_meas_optimize()` — deferred, not in v1
 

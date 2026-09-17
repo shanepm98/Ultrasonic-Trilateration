@@ -12,7 +12,7 @@ the ESP32's and the host's native byte order.
 import struct
 from enum import IntEnum
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 MAX_SEGMENTS = 8
 NUM_THRESHOLDS = 8
@@ -110,12 +110,24 @@ def unpack_thresholds(data: bytes):
 CALL_MEAS_RESET = struct.Struct("<B")
 # at_call_meas_init_t: meas_num, odr, meas_period, mode
 CALL_MEAS_INIT = struct.Struct("<BBHB")
-# at_call_add_segment_tx_t: meas_num, num_cycles, pulse_width, phase, int_enable
-CALL_ADD_SEGMENT_TX = struct.Struct("<BHBBB")
-# at_call_add_segment_rx_t: meas_num, num_samples, gain_reduce, atten, int_enable
-CALL_ADD_SEGMENT_RX = struct.Struct("<BHBBB")
-# at_call_add_segment_count_t: meas_num, num_cycles, int_enable
-CALL_ADD_SEGMENT_COUNT = struct.Struct("<BHB")
+
+
+class SegTarget(IntEnum):
+    """at_seg_target_t: whether an ADD_SEGMENT_* call applies directly to the receiver's own
+    sensor (LOCAL) or is only staged for ESP-NOW relay to the transmitter (REMOTE) - the two are
+    independent queues (COUNT+RX on the receiver vs TX+COUNT+RX on the transmitter), never the
+    same list. TX segments must always use REMOTE - the receiver has no local use for one."""
+
+    LOCAL = 0
+    REMOTE = 1
+
+
+# at_call_add_segment_tx_t: meas_num, target, num_cycles, pulse_width, phase, int_enable
+CALL_ADD_SEGMENT_TX = struct.Struct("<BBHBBB")
+# at_call_add_segment_rx_t: meas_num, target, num_samples, gain_reduce, atten, int_enable
+CALL_ADD_SEGMENT_RX = struct.Struct("<BBHBBB")
+# at_call_add_segment_count_t: meas_num, target, num_cycles, int_enable
+CALL_ADD_SEGMENT_COUNT = struct.Struct("<BBHB")
 # at_call_set_odr_t: meas_num, odr
 CALL_SET_ODR = struct.Struct("<BB")
 # at_call_set_num_samples_t: meas_num, num_samples
