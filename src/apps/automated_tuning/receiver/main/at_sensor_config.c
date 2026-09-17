@@ -121,8 +121,13 @@ at_status_t at_cfg_meas_reset(const uint8_t *body, uint8_t *resp, uint8_t *resp_
     /* Block until any in-flight trigger+response-wait cycle finishes, so this reconfigure can
      * never race a measurement already underway - closes the race rather than just gating
      * future triggers with a flag. Bounded wait: the trigger loop never holds this mutex longer
-     * than its own response timeout. */
-    xSemaphoreTake(g_trigger_cycle_mutex, pdMS_TO_TICKS(AT_RESPONSE_TIMEOUT_MS + 20));
+     * than its own response timeout. The return value MUST be checked: previously it wasn't,
+     * so a timed-out Take still fell through to touch g_dev (ch_set_mode/ch_meas_reset) while
+     * the trigger loop could still be mid-SPI-transaction on the same sensor, then unconditionally
+     * called Give on a mutex this task never actually acquired. */
+    if (xSemaphoreTake(g_trigger_cycle_mutex, pdMS_TO_TICKS(AT_RESPONSE_TIMEOUT_MS + 20)) != pdTRUE) {
+        return AT_STATUS_ERR;
+    }
 
     /* Defensive bracket: SonicLib documents no "must be idle" requirement for ch_meas_reset(),
      * but the underlying implementation has no busy-check either, so idling first avoids racing

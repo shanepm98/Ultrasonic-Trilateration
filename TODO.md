@@ -56,11 +56,45 @@ The next step is to research and develop a wireless system for coordinating all 
 is the ESP-NOW protocol for synchronizing timestamps between boards (e.g, Flooding time synchronization protocol, FTSP),
 and then agreeing on a trigger time.
 
-## Sensor tuning/calibration
-The currently defined sensor thresholds and parameters are just placeholders for testing the hardware.
-To improve the performance of the sensors, they need to be bench-calibrated. An interactive application will
-be written to tune these values live, without recompilation, by resetting and reconfiguring the sensor at runtime.
-This program should be run on multiple boards at once and get feedback from other boards wirelessly.
+## Automated sensor tuner (`src/apps/automated_tuning/`)
+Protocol, firmware, and host control script all implemented (2026-09-17); currently in first
+hardware bring-up / debugging, **paused mid-session** to work on something else. See
+`src/apps/automated_tuning/README.md` for the full writeup.
+
+- [x] Binary RPC protocol (`include/at_protocol.h`, `host/protocol.py`), receiver/transmitter
+      firmware, and the automatic tuning search (`host/tuning_algorithm.md`, `host/tuner.py`).
+- [x] Fixed during bring-up: `AT_OP_ADD_SEGMENT_*` conflated "apply to the receiver's own sensor"
+      with "relay to the transmitter" into one array - the transmitter could never have gotten a
+      real TX segment. Added an explicit LOCAL/REMOTE `target` field (`AT_PROTOCOL_VERSION`
+      bumped 1->2).
+- [x] Fixed during bring-up: `at_cfg_meas_reset()` ignored `xSemaphoreTake()`'s return value, so
+      a timed-out lock acquisition still fell through to touch the sensor without holding it.
+      This was the root cause of a `SET_MAX_RANGE` hang seen on the first live test - confirmed
+      fixed via debug logging (full reconfigure sequence now completes cleanly, status=OK on
+      every opcode).
+- [ ] **Resume here**: with the hang fixed, the automatic search now runs cleanly but reports
+      `detection_rate=0.00` (no target ever detected) at a 250mm test distance - very close to
+      the ICU-20201's ~200mm datasheet-rated minimum range. The receiver's own trigger loop and
+      local sensor config are confirmed healthy (telemetry flows every trial), so this looks like
+      either a near-field/minimum-range limitation of the seed config, or an unvalidated
+      transmitter/pairing/wiring issue rather than an RPC bug. Next steps when resuming:
+      1. Retest at a more typical distance (1-3m) to rule out the near-field explanation.
+      2. Confirm whether this receiver+transmitter pair has ever produced a valid pitch-catch
+         reading on *any* firmware - `pitch_catch_mode_hardware_test`'s own to-do below still
+         lists "first on-hardware pitch-catch run" as unvalidated, which would point at basic
+         wiring/ESP-NOW pairing rather than anything in `automated_tuning`.
+- [ ] **Temporary debug code still in the tree** - remove once the detection issue above is
+      resolved: `receiver/main/rpc_dispatch.c`'s `dbg_print()` (NUL-delimited `esp_rom_printf`
+      breadcrumbs around every RPC call) and the matching `[raw/malformed]` print in
+      `host/serial_link.py`'s reader loop.
+- [ ] Separate, lower-priority bug found during the same debug session: SonicLib's own
+      `CH_LOG_INFO`-level logging (`CH_LOG_MODULE_LEVEL=2` in `invn-soniclib/CMakeLists.txt`)
+      bypasses `esp_log_level_set()` entirely, so it isn't actually silenced by the receiver's
+      "UART0 belongs to the RPC link now" design - COBS resync papers over it today, but lowering
+      `CH_LOG_MODULE_LEVEL` (e.g. to ERROR) would close the gap properly.
+- [ ] Minor polish once the above is resolved: telemetry's `amplitude` field is force-zeroed
+      whenever `have_target=false` (`trigger_loop.c`'s `data_ready_cb`), which hides "how close
+      was the signal to threshold" diagnostic info that would help live-tune borderline configs.
 
 
 ## Self-mapping relative coordinate system

@@ -1,10 +1,28 @@
 #include "rpc_dispatch.h"
 
 #include <stdint.h>
+#include <stdio.h> /* TEMPORARY DEBUG: snprintf for dbg_print()'s formatted messages */
+
+#include "driver/uart.h" /* TEMPORARY DEBUG: uart_write_bytes() to emit literal 0x00 delimiters
+                           * around each debug line (see dbg_print() below) */
+#include "esp_rom_sys.h" /* TEMPORARY DEBUG: esp_rom_printf - bypasses the ESP_LOGx silencing so
+                           * we can see exactly how far a reconfigure sequence gets. Remove once
+                           * the SET_MAX_RANGE hang is diagnosed. */
 
 #include "at_protocol.h"
 #include "at_sensor_config.h"
 #include "serial_link.h"
+
+/* TEMPORARY DEBUG: esp_rom_printf() has no frame delimiter of its own, so its text glues onto
+ * whatever real COBS frame follows it with no 0x00 boundary in between - corrupting the host's
+ * next parse. Wrapping each debug line in literal NUL bytes isolates it as its own (intentionally
+ * unparseable) "frame" on the wire, so it can't corrupt the real response that follows. */
+static void dbg_print(const char *msg) {
+    static const uint8_t nul = 0;
+    uart_write_bytes(UART_NUM_0, (const char *)&nul, 1);
+    esp_rom_printf("%s", msg);
+    uart_write_bytes(UART_NUM_0, (const char *)&nul, 1);
+}
 
 /* Largest real CALL body is at_call_gpt_algo_configure_t (40 bytes); largest response ret_data
  * is at_thresholds_t (32 bytes, AT_OP_GET_THRESHOLDS). 64/32 leave headroom without matching
@@ -61,9 +79,19 @@ void at_rpc_task(void *arg) {
         uint8_t         body[RPC_MAX_BODY_LEN];
         serial_link_recv_call(&hdr, body, sizeof(body));
 
+        /* TEMPORARY DEBUG */
+        char dbg_buf[64];
+        snprintf(dbg_buf, sizeof(dbg_buf), "[dbg] opcode=0x%02x len=%u seq=%u enter\n", hdr.opcode, hdr.len,
+                  hdr.seq);
+        dbg_print(dbg_buf);
+
         uint8_t resp_body[1 + RPC_MAX_RET_DATA_LEN];
         uint8_t ret_len = 0;
         at_status_t status = dispatch(hdr.opcode, body, hdr.len, resp_body + 1, &ret_len);
+
+        /* TEMPORARY DEBUG */
+        snprintf(dbg_buf, sizeof(dbg_buf), "[dbg] opcode=0x%02x status=%u exit\n", hdr.opcode, (unsigned)status);
+        dbg_print(dbg_buf);
 
         resp_body[0] = (uint8_t)status;
         serial_link_send(AT_MSG_RESPONSE, hdr.seq, hdr.opcode, resp_body, (uint8_t)(1u + ret_len));

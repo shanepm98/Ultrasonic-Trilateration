@@ -1,6 +1,50 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-17-2026
+- Implemented the `automated_tuning` host control script (`host/tuner.py`, `serial_link.py`,
+  `trial.py`, `tuning_search.py`, `cobs.py`) plus a pytest suite (31 tests, all hardware-
+  independent: COBS round-trip, frame demuxing including the interleaved-telemetry case, trial
+  statistics/scoring, the sample-index formula, JSON schema round-trip). Set up a venv +
+  `requirements.txt` under `host/` per usual convention.
+- Found and fixed a real firmware bug while implementing the host script (not on hardware yet):
+  `AT_OP_ADD_SEGMENT_*` conflated "apply to the receiver's own sensor" with "relay to the
+  transmitter" into a single shared array - the transmitter could never have received a working
+  TX segment, since the receiver is RX-only and the transmitter needs TX+COUNT+RX. Fixed by
+  adding an explicit `target` (LOCAL/REMOTE) field to the three segment opcodes
+  (`AT_PROTOCOL_VERSION` bumped 1->2). Both firmware images rebuilt clean.
+- First live hardware test of the whole system: hit a hang on `AT_OP_SET_MAX_RANGE`, every time,
+  right after `AT_OP_GPT_ALGO_CONFIGURE` succeeded. Two theories (a SonicLib segment-shrink loop
+  in `ch_common_meas_set_num_samples`, and an uninitialized-measurement corruption from calling
+  `ch_meas_reset()` before any `ch_meas_init()`) were both ruled out by reading the vendored
+  SonicLib source directly - both turned out to be pure host-side RAM operations with no
+  possibility of hanging.
+- Actual root cause, found by reading `at_cfg_meas_reset()` closely: it called
+  `xSemaphoreTake(g_trigger_cycle_mutex, ...)` but never checked the return value, so a timed-out
+  acquisition still fell through to call `ch_set_mode()`/`ch_meas_reset()` on the sensor without
+  actually holding the lock - racing directly against the trigger loop's own in-flight SPI
+  activity. Fixed by checking the return value and returning `AT_STATUS_ERR` on timeout instead.
+- Added temporary debug instrumentation to confirm the fix: `rpc_dispatch.c` prints
+  `[dbg] opcode=... enter/exit` around every RPC call via `esp_rom_printf`, wrapped in explicit
+  `0x00` delimiters (`dbg_print()`) so it can't corrupt the real COBS-framed response that
+  follows it on the wire - the first version of this without NUL-wrapping did exactly that,
+  breaking even the `HELLO` handshake. `serial_link.py`'s reader was temporarily changed to print
+  any bytes that fail to parse as a frame, so the breadcrumbs are visible from `tuner.py`.
+- Reflash-and-retest confirmed the semaphore fix: the full reconfigure sequence (11 opcodes) now
+  completes cleanly with `status=0` on every call, across all three Stage 1 ODR candidates - no
+  hang. Also surfaced an unrelated, lower-priority finding: SonicLib's own `CH_LOG_INFO` logging
+  (`CH_LOG_MODULE_LEVEL=2`) bypasses `esp_log_level_set()` entirely and leaks onto the wire
+  regardless of our "UART0 belongs to the RPC link" design - COBS resync handles it today, but
+  worth tightening later.
+- New problem, not yet resolved: with the hang fixed, the search runs but reports
+  `detection_rate=0.00` at a 250mm test distance - right at the edge of the ICU-20201's ~200mm
+  rated minimum range. Receiver's own trigger loop/local config confirmed healthy (telemetry
+  flows every trial); undetermined whether this is a near-field limitation of the seed config or
+  an unvalidated wiring/ESP-NOW-pairing issue (this receiver+transmitter pair, on any firmware,
+  has never been confirmed to produce a valid pitch-catch reading - see TODO.md).
+- Paused here (mid-debug) to switch to another project. Temporary debug prints are still in the
+  tree; see TODO.md for the exact resume plan.
+
 ## 9-11-2026
 - Implemented `src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` (previously an empty
   scaffold). Both build clean independently in the Docker toolchain; not yet run on hardware.

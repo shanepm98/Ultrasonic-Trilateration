@@ -131,9 +131,15 @@ class SerialLink:
             if byte == 0x00:
                 if buf:
                     frame = parse_frame(bytes(buf))
-                    buf.clear()
                     if frame is not None:
                         self._dispatch(frame)
+                    else:
+                        # TEMPORARY DEBUG: surface anything that fails to parse as a frame, so
+                        # the receiver's esp_rom_printf() breadcrumbs (which corrupt COBS framing
+                        # by design - they bypass it entirely) are visible here instead of just
+                        # silently dropped. Remove once the SET_MAX_RANGE hang is diagnosed.
+                        print(f"[raw/malformed] {bytes(buf)!r}")
+                    buf.clear()
                 continue
             buf.append(byte)
 
