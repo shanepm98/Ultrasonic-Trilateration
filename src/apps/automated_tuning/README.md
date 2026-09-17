@@ -42,10 +42,25 @@ not clear-text, since only a program talks to either link:
 See the header comments in `at_protocol.h` for the full opcode table, wire layouts, and the reasoning
 behind each design choice (framing, snapshot-vs-incremental relay, versioning).
 
+## Tuning algorithm
+The automatic-mode search the control script (not yet written) will run is designed in
+`host/tuning_algorithm.md`. It's a staged, physically-informed coordinate-wise search, not a
+generic optimizer: each real trial costs real time on physical hardware, so the design tunes one
+group of related parameters at a time (ODR, then TX drive strength, then TX phase, then RX
+gain/attenuation, then ringdown/static-filter suppression, then detection thresholds), in an
+order chosen from TDK's own documented parameter semantics, converging in an estimated ~2-2.5
+minutes per calibration distance instead of the hours a blind joint search would need. It also
+guards against a specific failure mode: since the calibration target is stationary, ringdown/
+static-filter suppression must never be sized large enough to suppress the real target along
+with the ringdown it's meant to filter out.
+
+See `host/tuning_algorithm.md` for the full trial protocol, acceptance-gate thresholds, per-stage
+search procedures, and the `configs/<N>meter.config` JSON output schema.
+
 ## To-Do 
 - [x] Design the communication protocol for efficiently sharing configuration data from receiver to transmitter via ESP-NOW
 - [x] Design the low-level remote function call API exposed by the receiver over USB for allowing the host to configure the sensor
-- [ ] Design the algorithm the control script will use for experimentally adjusting control values
+- [x] Design the algorithm the control script will use for experimentally adjusting control values
 - [ ] Write the control python script 
 - [x] Write the receiver firmware
 - [x] Write the transmitter firmware 
