@@ -5,6 +5,7 @@ idf_component_register(
          "invn/soniclib/ch_driver.c"
          "invn/soniclib/ch_math_utils.c"
          "invn/soniclib/ch_log.c"
+         "invn/soniclib/ch_rangefinder.c"
          "invn/soniclib/extra/ch_extra_display_utils.c"
          "invn/soniclib/sensor_fw/icu_gpt/icu_gpt.c"
          "invn/soniclib/sensor_fw/icu_gpt/icu_gpt_fw.c"

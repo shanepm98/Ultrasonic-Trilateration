@@ -47,6 +47,6 @@ behind each design choice (framing, snapshot-vs-incremental relay, versioning).
 - [x] Design the low-level remote function call API exposed by the receiver over USB for allowing the host to configure the sensor
 - [ ] Design the algorithm the control script will use for experimentally adjusting control values
 - [ ] Write the control python script 
-- [ ] Write the receiver firmware
-- [ ] Write the transmitter firmware 
+- [x] Write the receiver firmware
+- [x] Write the transmitter firmware 
 - [ ] Test in hardware
