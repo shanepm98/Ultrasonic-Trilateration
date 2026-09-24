@@ -56,6 +56,71 @@ The next step is to research and develop a wireless system for coordinating all 
 is the ESP-NOW protocol for synchronizing timestamps between boards (e.g, Flooding time synchronization protocol, FTSP),
 and then agreeing on a trigger time.
 
+`src/apps/espnow_ftsp_test/` - **scaffolded (2026-09-17), not yet validated on hardware.** Single
+symmetric app (both boards run identical firmware; role decided at runtime by lowest-MAC
+election), unlike the sender/receiver split used by `pitch_catch_mode_hardware_test`. See
+`src/apps/espnow_ftsp_test/README.md` for the architecture writeup. Builds clean in the Docker
+toolchain.
+- [x] First on-hardware run with two boards (2026-09-17): both strobe, but with a severe and
+      variable delta between the two GPIO25 edges (one measurement: 8ms) - far too large to be
+      clock-skew drift, and "variable" pointed at a jitter source rather than a fixed-offset bug.
+- [x] Found and fixed: `espnow_link_init()` never disabled WiFi power save, so STA mode defaulted
+      to `WIFI_PS_MIN_MODEM`, which sleeps the radio between operations and wakes it on demand - a
+      well-known source of multi-millisecond, variable latency on `esp_now_send()`/recv-callback
+      dispatch that corrupts every FTSP timestamp, since they're all taken at the API call site.
+      Added `esp_wifi_set_ps(WIFI_PS_NONE)` right after `esp_wifi_start()`. Builds clean; **not
+      yet re-tested on hardware.**
+- [x] Reflashed both boards with the power-save fix plus per-packet reception logging
+      (2026-09-17). Confirmed both directions of the radio link and election are solid - the
+      follower's log showed a continuous stream of `"discovery: heard claim ..."` lines from the
+      root, correct election (`role=FOLLOWER, root=<root's MAC>`), and the root's own log showed
+      it hearing the follower's HELLO echoing the same claim back. Not an ESP-NOW/config problem.
+- [x] Found and fixed the real cause of the remaining severe/variable delta: the follower's
+      sample log (`local=... root=... offset=...`) showed 3 of 4 early samples clustered tightly
+      (~366us spread - a good noise floor) but one sample was a ~13ms outlier, and it landed as
+      one of only *2* points in the regression right when `gpio_strobe` started using the fit - a
+      2-point line fits both points exactly, so that single bad sample became the entire skew
+      estimate. Fixed in `main/ftsp_sync.h`/`.c`: raised the minimum sample count before a fit is
+      trusted (`FTSP_MIN_SAMPLES_FOR_VALID`, 2->4) and added residual-based outlier rejection in
+      `ftsp_regression_add_sample()` (`FTSP_OUTLIER_THRESHOLD_US=3000`) once a fit exists. Builds
+      clean; **not yet re-tested on hardware.**
+- [x] Added a compile-time console-logging mute (`main/Kconfig.projbuild`'s
+      `CONFIG_FTSP_MUTE_LOGS`, sets `LOG_LOCAL_LEVEL=ESP_LOG_NONE` in all 4 of this app's `.c`
+      files) to test the hypothesis that blocking UART writes - not WiFi - were the dominant
+      jitter source: each console line costs several ms of real wall-clock time at typical baud
+      rates, long enough to delay FreeRTOS scheduling and corrupt the very `esp_timer_get_time()`
+      calls this app's accuracy depends on. Off by default; verified via `strings` on the built
+      `.elf` that enabling it actually strips the format strings, not just runtime-filters them.
+- [x] Changed the rendezvous design (2026-09-17): the root now explicitly picks and broadcasts the
+      next GPIO-strobe instant (`ftsp_msg_sync_t.next_strobe_root_us`) in every SYNC packet,
+      instead of each board independently rounding its own clock estimate up to the next
+      100ms boundary. Followers copy the announced value verbatim and only translate it to local
+      time via the regression; the old independent-derivation logic remains as a fallback for when
+      no still-future announcement is available yet (startup, a dropped packet). Moves the "which
+      boundary is next" decision onto the root's own, definitionally-accurate clock instead of a
+      follower's noisier real-time estimate. Also reduced `FTSP_SYNC_INTERVAL_MS` 200->100 to
+      match the strobe period, so a fresh announcement is available every strobe cycle rather than
+      every other one. See the rendezvous note at the top of `main/ftsp_sync.h`.
+- [ ] **Resume here**: reflash both boards with the outlier-rejection fix, the explicit-rendezvous
+      protocol change, and logging muted, then re-measure the GPIO25-to-GPIO25 delta on the scope.
+      This is the first hardware test of all three fixes together. If still off, re-enable logging
+      (`CONFIG_FTSP_MUTE_LOGS=n`) to see the `next_strobe=` field in the follower's sample log and
+      confirm it's actually arriving fresh and being honored (vs. hitting the fallback branch
+      constantly, which would mean SYNC packets are being missed more than expected).
+- [ ] Tune `FTSP_TABLE_SIZE`/`FTSP_HELLO_INTERVAL_MS`/`FTSP_SYNC_INTERVAL_MS`/`FTSP_ROOT_TIMEOUT_MS`
+      (`main/ftsp_sync.h`) against the measured sync error.
+- [ ] Investigate the source of the occasional ~13ms sample outlier itself (still present, just
+      now filtered rather than explained) - software timestamps (`esp_timer_get_time()` at the
+      `esp_now_send()`/recv-callback call sites) remain the likely cause even with power save
+      disabled, since WiFi driver queuing/CSMA backoff jitter isn't compensated for. Investigate
+      whether a hardware/MAC-layer timestamp is available, or whether
+      `esp_now_register_send_cb()` gives a tighter "actually transmitted" timestamp than the
+      pre-send read currently used.
+- [ ] Add residual/outlier rejection to `ftsp_regression_add_sample()` (`main/ftsp_sync.c`) - the
+      original FTSP paper discards high-residual points before fitting; this scaffold doesn't yet.
+- [ ] Election/re-election logic has only been reasoned about for 2 nodes - untested for >2 nodes
+      or network partitions.
+
 ## Automated sensor tuner (`src/apps/automated_tuning/`)
 Protocol, firmware, and host control script all implemented (2026-09-17); currently in first
 hardware bring-up / debugging, **paused mid-session** to work on something else. See

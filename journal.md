@@ -44,6 +44,49 @@ This doc is for briefly summarizing daily progress/thoughts/setbacks for future 
   has never been confirmed to produce a valid pitch-catch reading - see TODO.md).
 - Paused here (mid-debug) to switch to another project. Temporary debug prints are still in the
   tree; see TODO.md for the exact resume plan.
+- Scaffolded `src/apps/espnow_ftsp_test/` (previously an empty README-only stub) into a working
+  first-pass FTSP-over-ESP-NOW capability test. Single symmetric app - both boards run identical
+  firmware and elect a root by lowest MAC address at boot, rather than the sender/receiver split
+  used by `pitch_catch_mode_hardware_test`. `ftsp_sync.c` fits a real least-squares regression of
+  clock offset vs. local time from each root SYNC beacon; `gpio_strobe.c` uses `esp_timer` (not
+  `vTaskDelay`) to strobe GPIO25 on 100ms boundaries of the synchronized root clock, re-deriving
+  the deadline from the freshest fit every cycle. Builds clean in the Docker toolchain; not yet
+  run on hardware - see TODO.md for the bench-tuning list.
+- First on-hardware run of `espnow_ftsp_test`: both boards strobe GPIO25, but with a severe and
+  variable delta between the two edges (one scope measurement: 8ms). Too large to be clock-skew
+  drift and too variable to be a fixed-offset bug, which pointed at a jitter source. Root cause:
+  `espnow_link_init()` never disabled WiFi power save, so STA mode defaulted to
+  `WIFI_PS_MIN_MODEM` - sleeps the radio between operations and wakes it on demand, a known source
+  of multi-ms variable latency on `esp_now_send()`/recv-callback dispatch that directly corrupts
+  every FTSP timestamp (all taken at the API call site). Added `esp_wifi_set_ps(WIFI_PS_NONE)`.
+  Builds clean; re-test on hardware is next (see TODO.md).
+- Reflashed both boards with the power-save fix plus new per-packet reception logging. Confirmed
+  the radio link and election are solid - both boards' logs showed a continuous, bidirectional
+  stream of received HELLO/SYNC packets and correct election (`role=FOLLOWER, root=<the other
+  board's MAC>` on one side, matching `role=ROOT` on the other). Not a communication problem.
+- Found the real cause of the remaining severe/variable strobe delta in the follower's own sample
+  log: 3 of 4 early SYNC samples clustered tightly (~366us spread), but one was a ~13ms outlier -
+  and it landed as one of only 2 points in the regression right when `gpio_strobe` started
+  trusting the fit. A 2-point line fits both points exactly, so that single bad sample became the
+  entire skew estimate - exactly the gap already flagged in the design doc (no outlier rejection).
+  Fixed: raised the minimum sample count before a fit is trusted
+  (`FTSP_MIN_SAMPLES_FOR_VALID`, 2->4) and added residual-based outlier rejection against the
+  existing fit (`FTSP_OUTLIER_THRESHOLD_US=3000`) in `ftsp_regression_add_sample()`. Builds clean;
+  re-test on hardware is next.
+- Added a compile-time logging mute (`CONFIG_FTSP_MUTE_LOGS` via a new `main/Kconfig.projbuild`)
+  to test whether blocking UART writes, not WiFi, were the dominant jitter source - each console
+  line costs several ms of real wall-clock time, long enough to delay FreeRTOS scheduling and
+  corrupt the `esp_timer_get_time()` calls this app depends on. Verified via `strings` on the
+  built `.elf` that enabling it genuinely strips the log format strings at compile time.
+- Redesigned the strobe rendezvous per a design change requested mid-session: instead of each
+  board independently rounding its own clock estimate up to the next 100ms boundary, the root now
+  explicitly picks and broadcasts the next strobe instant in every SYNC packet
+  (`next_strobe_root_us`), and followers copy it verbatim rather than re-deriving it - moves the
+  "which boundary is next" decision onto the root's own, definitionally-accurate clock instead of
+  a follower's noisier real-time estimate. Old independent-derivation logic kept as a fallback for
+  when no fresh announcement is available yet. Also matched `FTSP_SYNC_INTERVAL_MS` to the strobe
+  period (200->100ms) so a fresh announcement covers every strobe cycle. Builds clean both with
+  and without logging muted; re-test on hardware (all three fixes together) is next.
 
 ## 9-11-2026
 - Implemented `src/apps/pitch_catch_mode_hardware_test/{sender,receiver}` (previously an empty

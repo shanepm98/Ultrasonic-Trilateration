@@ -1,0 +1,22 @@
+menu "ESP-NOW FTSP Test"
+
+    config FTSP_MUTE_LOGS
+        bool "Mute this app's console logging (bring-up jitter diagnostic)"
+        default n
+        help
+            Compiles out every ESP_LOGx call in this app's own source (espnow_link.c,
+            ftsp_sync.c, gpio_strobe.c, ftsp_main.c) by setting LOG_LOCAL_LEVEL to ESP_LOG_NONE
+            in each file - a genuine compile-time removal, not a runtime filter.
+
+            Console/UART writes are blocking (they poll the TX FIFO) and can cost several
+            milliseconds of wall-clock time per line at typical baud rates - long enough to
+            delay FreeRTOS task scheduling and directly corrupt the esp_timer_get_time()
+            timestamps this app's synchronization accuracy depends on. Enable this to rule
+            logging-induced jitter in or out during bench bring-up.
+
+            Leave off for normal development - it also removes the bring-up diagnostics added
+            during initial debugging (see journal.md, 2026-09-17). ESP-IDF's own system/WiFi
+            boot-time logging is unaffected by this option; use "Component config > Log output"
+            in menuconfig if a fully silent boot is also needed.
+
+endmenu

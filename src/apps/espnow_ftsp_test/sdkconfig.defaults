@@ -1,0 +1,5 @@
+# No SonicLib/BSP work happens here (see echo_mode_hardware_test's sdkconfig.defaults for that
+# rationale) - app_main() only does WiFi/ESP-NOW bring-up, which fits the default
+# CONFIG_ESP_MAIN_TASK_STACK_SIZE. Left empty intentionally; revisit (e.g. bump
+# CONFIG_ESP_TIMER_TASK_STACK_SIZE) if bench testing shows stack pressure in the esp_timer
+# service task once gpio_strobe's callbacks are exercised under load.
