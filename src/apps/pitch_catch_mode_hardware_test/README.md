@@ -125,3 +125,43 @@ Plus two board-to-board links, specific to this pitch-catch pair:
 
 VDD = 1.8V regulated; VDDIO may be 3.3V (direct to the ESP32). Both boards need this rail
 independently.
+
+
+
+## Raw data readout
+
+`receiver_readout/` is a modified version of `receiver/` - same sensor configuration (measurement
+queue, `icu_gpt` algorithm/thresholds, `CH_MODE_TRIGGERED_RX_ONLY`), same sender-ready GPIO33
+check - but instead of reporting the computed distance on a fixed 10 Hz cadence, it dumps the raw
+I/Q trace of each measurement as plain text, for offboard signal processing (e.g. bench-tuning the
+thresholds/gain against real waveforms in a separate program).
+
+A full I/Q dump (up to `ICU_MAX_NUM_SAMPLES` samples x 4 bytes, ~1.4 KB) doesn't fit inside a
+100 ms trigger interval over a typical console baud rate, so this variant triggers **on demand**
+instead of free-running: type any line (just press Enter) in the serial monitor to fire one
+measurement. Output format:
+
+```
+IQ_BEGIN meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u>
+IQ,<sample index>,<I>,<Q>
+...
+IQ_END
+```
+
+`IQ_BEGIN`/`IQ,`/`IQ_END` are plain `printf` lines (not `ESP_LOGx`), so a host-side script can
+grep for them and ignore interleaved log output.
+
+### Plotting a recording
+
+`receiver_readout/host/plot_readout.py` (standard library only, no venv needed) renders a CSV of
+`idx,i,q` rows - e.g. the `IQ,` lines of one measurement, grepped out of a captured console log
+and given a header row - as an interactive HTML waveform plot (amplitude envelope + raw I/Q,
+synced hover, ringdown/threshold context pulled from `readout_loop.c`'s current config):
+
+```
+./host/plot_readout.py recording.csv --open
+./host/plot_readout.py recording.csv --target 0 --range-mm 193.2   # if known, from IQ_BEGIN
+```
+
+See `plot_readout.py --help` for the threshold/ringdown override flags (only needed if
+`readout_loop.c`'s `rx_thresholds`/`RX_RINGDOWN_CANCEL_SAMPLES` have since been re-tuned).

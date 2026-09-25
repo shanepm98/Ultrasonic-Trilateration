@@ -1,6 +1,18 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-24-2026
+- Added `src/apps/pitch_catch_mode_hardware_test/receiver_readout/`, a raw I/Q dump variant of
+  `receiver/` for offboard signal processing / bench tuning. Same sensor configuration as
+  `receiver_loop.c` (measurement queue, `icu_gpt` algo/thresholds, `CH_MODE_TRIGGERED_RX_ONLY`),
+  but on-demand rather than free-running: a full I/Q dump (up to `ICU_MAX_NUM_SAMPLES` samples x
+  4 bytes, ~1.4 KB) doesn't fit inside the base receiver's 100ms trigger interval over a typical
+  console baud rate, so this app idles for a line typed on the serial console, fires exactly one
+  trigger, and dumps that measurement's raw I/Q trace as plain text
+  (`IQ_BEGIN`/`IQ,<idx>,<i>,<q>`/`IQ_END`). Deliberately plain text, not a binary/COBS protocol
+  like `automated_tuning`'s - no host-side parser exists yet, this is meant as a quick bench tool.
+  Builds clean in the Docker toolchain; not yet run on hardware.
+
 ## 9-17-2026
 - Implemented the `automated_tuning` host control script (`host/tuner.py`, `serial_link.py`,
   `trial.py`, `tuning_search.py`, `cobs.py`) plus a pytest suite (31 tests, all hardware-

@@ -49,6 +49,13 @@ the full architecture writeup.
       independently, verify INT1 and GPIO33 wiring continuity, validate `CH_RANGE_DIRECT` against
       a tape-measure baseline, confirm the GPIO33 readiness gate actually prevents
       double-triggering when the sender responds slowly.
+- [ ] `receiver_readout/` (raw I/Q dump variant of `receiver/`, for offboard tuning) -
+      **implemented (2026-09-24), builds clean, not yet run on hardware.** On-demand (not
+      free-running): type a line in the serial monitor to trigger one measurement and dump its
+      raw I/Q trace as plain text (`IQ_BEGIN`/`IQ,`/`IQ_END`). See
+      `src/apps/pitch_catch_mode_hardware_test/README.md` ("Raw data readout"). Next: flash and
+      confirm the dump against a known target, then decide whether a host-side parsing script is
+      worth writing.
 
 ## Wireless synchronization system
 In the hardware tests with the V3 revision of the PCB, the sensor trigger lines are hardwired together between the boards.
