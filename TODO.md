@@ -57,6 +57,24 @@ the full architecture writeup.
       confirm the dump against a known target, then decide whether a host-side parsing script is
       worth writing.
 
+## IR-triggered pitch-catch (`src/apps/ir_accuracy_test/`)
+`sender/` + `receiver/` - wireless version of `receiver_readout`: the receiver's IR burst
+(GPIO25, 38 kHz, 5 ms) triggers both sensors via each board's IR demodulator on INT1; GPIO2 is
+high-impedance on both boards; GPIO26 held high powers the IR module. **Verified on hardware
+(2026-09-28): end-to-end test passes.** See `src/apps/ir_accuracy_test/README.md`.
+- [x] First on-hardware run (2026-09-28): receiver's IR burst triggers both sensors, and the
+      receiver dumps the I/Q trace.
+- [ ] Scope receiver GPIO25 (38 kHz, ~5 ms per Enter) and INT1 on both boards (clean low pulse,
+      no contention from GPIO2).
+- [x] Trigger edge (2026-09-28): LED idles low, demodulator and INT1 are both active-low, so the
+      measurement starts on the falling edge at the start of the IR burst. The ~5 ms low pulse
+      works; burst length doesn't affect trigger timing.
+- [ ] Measure trigger skew between the two boards (INT1 falling edges on the scope) - this is the
+      core accuracy number for this approach.
+- [ ] Capture readouts at known distances and compare `range_mm` / waveforms against the hardwired
+      `pitch_catch_mode_hardware_test` captures (`readouts/15ft`, `readouts/25ft`).
+- [x] IR LED drive polarity (2026-09-28): active-high, idles low (off), as the firmware assumes.
+
 ## Wireless synchronization system
 In the hardware tests with the V3 revision of the PCB, the sensor trigger lines are hardwired together between the boards.
 The next step is to research and develop a wireless system for coordinating all sensors with precision. One promising option

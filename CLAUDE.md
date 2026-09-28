@@ -17,8 +17,13 @@ DevKitV1 over SPI, using TDK's SonicLib.
   - `echo_mode_hardware_test/` - flashes the POST + free-running echo-mode (pulse-echo, single
     sensor) rangefinding loop and reports over serial. Verified working on hardware. Not
     production firmware.
-  - `pitch_catch_mode_hardware_test/{sender,receiver}` - two-sensor pitch-catch bring-up
-    (scaffolded, not yet implemented).
+  - `pitch_catch_mode_hardware_test/{sender,receiver,receiver_readout}` - two-sensor pitch-catch
+    with the boards' INT1 trigger lines hardwired together. `receiver_readout` dumps raw I/Q;
+    hardware captures are in `readouts/`.
+  - `ir_accuracy_test/{sender,receiver}` - the same pitch-catch I/Q readout, but triggered by a
+    38 kHz IR burst (the receiver's LED drives each board's IR demodulator, whose output goes to
+    INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on
+    hardware (2026-09-28).
 - `docs/` - project documentation (theory, bring-up notes, BSP reference). `docs/datasheets/`
   holds the PDFs; `docs/vendor/` holds excerpts from TDK docs.
 - `CAD/` - schematics, PCB, gerbers. `pics/` - photos and rendered schematics.

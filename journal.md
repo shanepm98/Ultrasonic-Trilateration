@@ -1,6 +1,28 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 9-28-2026
+- `src/apps/ir_accuracy_test` run on hardware and **passed**: the receiver's 38 kHz IR burst
+  triggers both sensors through their demodulators with no board-to-board wires, and the receiver
+  dumps the I/Q trace. This is the first working wireless trigger for pitch-catch. Next: measure
+  the trigger skew between boards on the scope and compare range accuracy against the hardwired
+  captures.
+- Confirmed signal polarity: the IR LED idles low (off), and the demodulator output and the ICU's
+  INT1 trigger are both active-low. So INT1 fires as soon as the IR burst is received (the
+  burst-start edge), and the 5 ms burst length doesn't affect trigger timing.
+- (9-26) Both apps now drive GPIO26 high at the very start of `app_main()`, before POST, to power
+  the IR module (`ir_power_on()` in `include/ir_common.h`).
+
+## 9-25-2026
+- Added `src/apps/ir_accuracy_test/{sender,receiver}`: the pitch-catch raw I/Q readout with the
+  hardwired INT1 trigger and GPIO33 sender-ready wires replaced by an IR link. The receiver fires a
+  5 ms, 38 kHz (LEDC, 50% duty) burst on GPIO25; each board's IR demodulator drives its own
+  sensor's INT1, so both sides see the same demodulator latency. Both apps release ESP32 GPIO2
+  (INT1) to high-impedance so it can't fight the demodulator, and never call SonicLib's trigger
+  functions. Sensor config and the `IQ_BEGIN`/`IQ,`/`IQ_END` dump are unchanged from
+  `receiver_readout`, so the host scripts work as-is. Both apps build clean; not yet run on
+  hardware.
+
 ## 9-24-2026
 - Added `src/apps/pitch_catch_mode_hardware_test/receiver_readout/`, a raw I/Q dump variant of
   `receiver/` for offboard signal processing / bench tuning. Same sensor configuration as
