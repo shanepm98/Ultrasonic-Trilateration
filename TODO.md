@@ -74,6 +74,7 @@ high-impedance on both boards; GPIO26 held high powers the IR module. **Verified
 - [ ] Capture readouts at known distances and compare `range_mm` / waveforms against the hardwired
       `pitch_catch_mode_hardware_test` captures (`readouts/15ft`, `readouts/25ft`).
 - [x] IR LED drive polarity (2026-09-28): active-high, idles low (off), as the firmware assumes.
+- [ ] Add KiCad schematics for the IR triggering hardware
 
 ## Wireless synchronization system
 In the hardware tests with the V3 revision of the PCB, the sensor trigger lines are hardwired together between the boards.
