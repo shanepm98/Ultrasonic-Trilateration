@@ -12,6 +12,8 @@ This doc is for briefly summarizing daily progress/thoughts/setbacks for future 
   burst-start edge), and the 5 ms burst length doesn't affect trigger timing.
 - (9-26) Both apps now drive GPIO26 high at the very start of `app_main()`, before POST, to power
   the IR module (`ir_power_on()` in `include/ir_common.h`).
+- Designed-in a precision 32.768 KHz oscillator to clock both the ESP32 and ICU-20201 for improved
+  accuracy in distance measurements. 
 
 ## 9-25-2026
 - Added `src/apps/ir_accuracy_test/{sender,receiver}`: the pitch-catch raw I/Q readout with the
