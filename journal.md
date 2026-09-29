@@ -14,6 +14,8 @@ This doc is for briefly summarizing daily progress/thoughts/setbacks for future 
   the IR module (`ir_power_on()` in `include/ir_common.h`).
 - Designed-in a precision 32.768 KHz oscillator to clock both the ESP32 and ICU-20201 for improved
   accuracy in distance measurements. 
+- Started cleaning up some of the documentation. Some of it is outdated and abandoned, some just straight up
+  missing. Work not done here. 
 
 ## 9-25-2026
 - Added `src/apps/ir_accuracy_test/{sender,receiver}`: the pitch-catch raw I/Q readout with the
