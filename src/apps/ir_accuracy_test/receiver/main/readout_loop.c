@@ -11,6 +11,10 @@
  * fights the demodulator - which is also why this app must never call ch_trigger()/
  * ch_group_trigger() (SonicLib switches GPIO2 back to a push-pull output when triggering).
  *
+ * readout_run() is a console menu ('m' returns to it) over three modes:
+ *   1. IR timing tuner (ir_tuner.c) - edits ir_cfg, the waveform used by every later trigger
+ *   2. raw I/Q readout - Enter fires one trigger and dumps the I/Q trace
+ *   3. distance - Enter fires one trigger and prints one RANGE line
  * On-demand rather than free-running: a ~1.4 KB dump (up to ICU_MAX_NUM_SAMPLES samples x 4 bytes)
  * takes far longer than a measurement over a typical console baud rate - see ../../README.md.
  */
@@ -29,8 +33,10 @@
 #include <invn/soniclib/chirp_bsp.h>                /* chbsp_group_set_int1_dir_in() */
 #include <invn/soniclib/sensor_fw/icu_gpt/icu_gpt.h> /* icu_gpt_algo_*, InvnAlgoRangeFinderConfig, ch_thresholds_t */
 
+#include "console_io.h"
 #include "ir_common.h" /* PC_TX_PULSE_US, PC_ODR, PC_MAX_RANGE_MM, IR_RESPONSE_TIMEOUT_MS */
 #include "ir_led.h"
+#include "ir_tuner.h"
 
 static const char *TAG = "ir-pitch-catch-rx";
 
@@ -82,11 +88,18 @@ typedef struct {
 
 /* Only one requested measurement is ever in flight at a time (on-demand triggering), so a single
  * static buffer + summary is enough. A stray ambient-IR trigger can still produce an unrequested
- * measurement; readout_run() drains the semaphore before each burst so that never gets reported
+ * measurement; fire_and_wait() drains the semaphore before each burst so that never gets reported
  * as the response to the next request. */
 static ch_iq_sample_t     iq_buf[ICU_MAX_NUM_SAMPLES];
 static readout_summary_t  summary;
 static SemaphoreHandle_t  data_ready_sem;
+
+/* Set by the current mode before triggering: only the raw I/Q mode needs the ~1.4 KB
+ * ch_get_iq_data() read, so the distance mode and tuner test shots skip it. */
+static volatile bool want_iq;
+
+/* IR trigger waveform used by every trigger; edited by the tuner (mode 1). */
+static ir_timing_t ir_cfg;
 
 /* Called by SonicLib after each measurement. Runs in the BSP's bsp_int_task (task level), so
  * blocking SPI reads here - including the I/Q readout - are fine. */
@@ -106,7 +119,7 @@ static void readout_data_ready_cb(ch_group_t *grp, uint8_t io_index, ch_interrup
         summary.num_samples = ICU_MAX_NUM_SAMPLES; /* defensive; shouldn't happen at PC_MAX_RANGE_MM */
     }
 
-    summary.iq_err = ch_get_iq_data(dev, iq_buf, 0, summary.num_samples, CH_IO_MODE_BLOCK);
+    summary.iq_err = want_iq ? ch_get_iq_data(dev, iq_buf, 0, summary.num_samples, CH_IO_MODE_BLOCK) : 0;
 
     xSemaphoreGive(data_ready_sem);
 }
@@ -157,17 +170,94 @@ static void print_iq_dump(uint32_t meas_num) {
         return;
     }
 
+    /* Trailing timing fields record the IR waveform each capture was taken with; the host parser
+     * (host/extract_measurements.py) ignores them. */
     if (summary.have_target) {
-        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=1 range_mm=%.1f amp=%u\n", meas_num,
+        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=1 range_mm=%.1f amp=%u", meas_num,
                summary.num_samples, summary.range_q5 / 32.0f, summary.amplitude);
     } else {
-        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0\n", meas_num,
+        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0", meas_num,
                summary.num_samples);
     }
+    printf(" pre_on_us=%" PRIu32 " pre_off_us=%" PRIu32 " trig_us=%" PRIu32 "\n",
+           ir_cfg.pre_enabled ? ir_cfg.pre_on_us : 0, ir_cfg.pre_enabled ? ir_cfg.pre_off_us : 0,
+           ir_cfg.trigger_us);
     for (uint16_t i = 0; i < summary.num_samples; i++) {
         printf("IQ,%u,%d,%d\n", i, iq_buf[i].i, iq_buf[i].q);
     }
     printf("IQ_END\n");
+}
+
+/* ============================ Distance line ============================ */
+
+static void print_range(uint32_t meas_num) {
+    if (summary.have_target) {
+        printf("RANGE meas=%" PRIu32 " target=1 range_mm=%.1f amp=%u\n", meas_num, summary.range_q5 / 32.0f,
+               summary.amplitude);
+    } else {
+        printf("RANGE meas=%" PRIu32 " target=0 range_mm=NA amp=0\n", meas_num);
+    }
+}
+
+/* ============================ Triggering ============================ */
+
+/* Fire one IR trigger with timing t and wait for this board's data-ready. Returns true if the
+ * sensor responded within IR_RESPONSE_TIMEOUT_MS. Requires ir_led_init() and the data-ready
+ * callback to be set up (readout_run()). */
+static bool fire_and_wait(const ir_timing_t *t) {
+    /* Discard any measurement a stray ambient-IR trigger produced since the last request. */
+    if (xSemaphoreTake(data_ready_sem, 0) == pdTRUE) {
+        ESP_LOGW(TAG, "discarding an unrequested measurement (stray IR trigger?)");
+    }
+
+    /* Both demodulators - this board's and the sender's - pull their sensor's INT1 low. */
+    esp_err_t err = ir_led_fire(t);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ir_led_fire() failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    return xSemaphoreTake(data_ready_sem, pdMS_TO_TICKS(IR_RESPONSE_TIMEOUT_MS)) == pdTRUE;
+}
+
+/* Tuner test shot: no I/Q readout needed, only whether the sensor responded. */
+static bool tuner_fire(const ir_timing_t *t) {
+    want_iq = false;
+    return fire_and_wait(t);
+}
+
+/* ============================ Modes 2 and 3 ============================ */
+
+/* Enter fires one measurement and prints it (I/Q dump or RANGE line); 'm' returns to the menu. */
+static void run_measure_mode(bool iq_mode) {
+    static uint32_t n = 0; /* measurement counter, shared across modes and menu visits */
+
+    printf("\n=== %s ===\nIR: ", iq_mode ? "Raw I/Q readout" : "Distance");
+    ir_timing_print(&ir_cfg);
+    printf("\n[Enter] fire trigger   [m] menu\n");
+
+    for (;;) {
+        int c = console_getc();
+        if (c == 'm' || c == 'M') {
+            return;
+        }
+        if (!console_is_enter(c)) {
+            continue;
+        }
+
+        want_iq = iq_mode;
+        n++;
+        if (!fire_and_wait(&ir_cfg)) {
+            ESP_LOGW(TAG, "#%" PRIu32 "  no INT2 within %u ms - check IR LED / demodulator / INT1 wiring",
+                     n, (unsigned)IR_RESPONSE_TIMEOUT_MS);
+            continue;
+        }
+
+        if (iq_mode) {
+            print_iq_dump(n);
+        } else {
+            print_range(n);
+        }
+    }
 }
 
 /* ============================ Public entry point ============================ */
@@ -205,34 +295,31 @@ void readout_run(ch_group_t *grp, ch_dev_t *dev) {
         }
     }
 
-    const TickType_t response_timeout = pdMS_TO_TICKS(IR_RESPONSE_TIMEOUT_MS);
-    char             line[16];
-    uint32_t         n = 0;
-
-    ESP_LOGI(TAG, "ready - type Enter to fire an IR trigger (GPIO%d, %u Hz, %u us)", IR_LED_GPIO,
-             IR_CARRIER_HZ, IR_BURST_US);
+    console_init();
+    ir_cfg = ir_timing_default();
 
     for (;;) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            vTaskDelay(pdMS_TO_TICKS(100)); /* console not connected yet / no input - avoid a busy spin */
-            continue;
+        printf("\n=== IR pitch-catch receiver ===\nIR: ");
+        ir_timing_print(&ir_cfg);
+        printf("\n  1) IR timing tuner\n  2) Raw I/Q readout\n  3) Distance\nselect mode: ");
+        fflush(stdout);
+
+        int c;
+        do {
+            c = console_getc();
+        } while (c < '1' || c > '3');
+        printf("%c\n", c);
+
+        switch (c) {
+        case '1':
+            ir_tuner_run(&ir_cfg, tuner_fire);
+            break;
+        case '2':
+            run_measure_mode(true);
+            break;
+        case '3':
+            run_measure_mode(false);
+            break;
         }
-
-        /* Discard any measurement a stray ambient-IR trigger produced since the last request. */
-        if (xSemaphoreTake(data_ready_sem, 0) == pdTRUE) {
-            ESP_LOGW(TAG, "discarding an unrequested measurement (stray IR trigger?)");
-        }
-
-        /* Both demodulators - this board's and the sender's - pull their sensor's INT1 low. */
-        ir_led_burst();
-        n++;
-
-        if (xSemaphoreTake(data_ready_sem, response_timeout) != pdTRUE) {
-            ESP_LOGW(TAG, "#%" PRIu32 "  no INT2 within %u ms - check IR LED / demodulator / INT1 wiring",
-                     n, (unsigned)IR_RESPONSE_TIMEOUT_MS);
-            continue;
-        }
-
-        print_iq_dump(n);
     }
 }

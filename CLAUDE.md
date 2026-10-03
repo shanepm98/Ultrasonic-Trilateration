@@ -23,7 +23,8 @@ DevKitV1 over SPI, using TDK's SonicLib.
   - `ir_accuracy_test/{sender,receiver}` - the same pitch-catch I/Q readout, but triggered by a
     38 kHz IR burst (the receiver's LED drives each board's IR demodulator, whose output goes to
     INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on
-    hardware (2026-09-28).
+    hardware (2026-09-28). The receiver has a console menu: IR timing tuner (RMT waveform), raw
+    I/Q readout, and distance readings.
 - `docs/` - project documentation (theory, bring-up notes, BSP reference). `docs/datasheets/`
   holds the PDFs; `docs/vendor/` holds excerpts from TDK docs.
 - `CAD/` - schematics, PCB, gerbers. `pics/` - photos and rendered schematics.

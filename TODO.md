@@ -39,6 +39,16 @@ high-impedance on both boards; GPIO26 held high powers the IR module. **Verified
 - [ ] Capture readouts at known distances and compare `range_mm` / waveforms against the hardwired
       `pitch_catch_mode_hardware_test` captures (`readouts/15ft`, `readouts/25ft`).
 - [x] IR LED drive polarity (2026-09-28): active-high, idles low (off), as the firmware assumes.
+- Receiver console menu (2026-10-02): `m` -> (1) IR timing tuner (optional pre-burst on/off +
+  trigger-burst length, Space = test trigger), (2) raw I/Q readout, (3) distance (`RANGE` line).
+  IR waveform moved from LEDC + busy-wait to RMT (exact to 1 us). **Builds clean, not yet run on
+  hardware.**
+  - [ ] Flash and walk through the menu: tuner prompts/echo, Backspace restart, Enter save, `m`
+        from modes 2/3. Confirm the serial monitor's Enter doesn't fire twice.
+  - [ ] Scope GPIO25 with a pre-burst (e.g. 600/600/5000 us): exact envelope, 38 kHz carrier,
+        LED off between triggers.
+  - [ ] Use the tuner to find the shortest reliable trigger burst and whether a pre-burst
+        (demodulator AGC settling) tightens the trigger skew between the boards.
 
 ## General performance tweaks
 - [ ] Raise SPI clock if needed. Running at 1MHz right now, can go up to 13MHz

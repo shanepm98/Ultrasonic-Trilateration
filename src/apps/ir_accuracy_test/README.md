@@ -10,16 +10,38 @@ On both boards, the output of the demodulator triggers the ultrasonic sensor. Th
 ## Functional description
 - Like in the `pitch_catch_mode_hardware_test`, the receiver controls the measurement loop
 - The sender is triggered by the receiver
-- 38KHz IR drive signal generated using the ESP32's LEDC peripheral
+- 38KHz IR drive signal generated using the ESP32's RMT peripheral (hardware carrier modulation; the
+  whole pre-burst/gap/trigger waveform is timed in hardware to 1 us)
 
-## Receiver loop
-The receiver main loop can be summarized as follows:
+## Receiver console menu
 
-1) Wait for ENTER keypress from host
-2) Pulse GPIO25 with 5ms of a 38KHz 50% duty cycle signal to drive the IR LED
-3) Wait for INT2 interrupt or 500ms, whichever comes first
-4) If no INT2 within 500ms, print warning to console. If INT2 triggers first, read out the raw I/Q data from sensor and print to console with clear delimiters for easy post-processing into CSV
-5) Repeat from step 1
+After POST the receiver shows a menu with the current IR timing. Press `1`/`2`/`3` to pick a mode;
+in modes 2 and 3, `m` returns to the menu.
+
+**1) IR timing tuner**: sets the IR trigger waveform used by every later trigger in modes 2 and 3.
+1) `Enable pre-burst? (y/n)`. On `y`: `pre-burst ON time (us)`, then `pre-burst OFF time (us)`.
+   Type a number and press Enter.
+2) `trigger burst time (us)`, asked whether or not the pre-burst is enabled.
+3) Then press **Enter** to save and return to the menu, **Space** to fire a test trigger (as many
+   times as you like, for the oscilloscope), or **Backspace** to start the configuration over.
+
+The waveform is: carrier ON for `pre_on_us`, OFF for `pre_off_us` (both only if the pre-burst is
+enabled), then carrier ON for `trigger_us`. Each value is 1..100000 us (`IR_MAX_SEGMENT_US`).
+Typed digits are echoed, Backspace deletes a digit while typing a number, and out-of-range or
+empty entries re-prompt. Each test shot also triggers both sensors, and the tuner reports whether
+the receiver's sensor answered (`receiver INT2: yes/NO`). The settings live in RAM only: on reboot
+they reset to pre-burst disabled, trigger 5000 us (`IR_BURST_US`).
+
+**2) Raw I/Q readout**: Enter fires one trigger, waits for INT2 (up to 500 ms), and prints the I/Q
+dump (see "Output format"). On timeout it prints a warning instead.
+
+**3) Distance**: Enter fires one trigger and prints one line with the sensor's own computed direct
+pitch-catch range: `RANGE meas=<n> target=<0|1> range_mm=<mm|NA> amp=<u>`. This mode skips the
+I/Q readout, so it responds faster.
+
+Before each trigger the receiver discards any measurement a stray IR trigger produced since the
+last request (logged as `discarding an unrequested measurement`). The tuner's test shots are
+consumed the same way and never show up as a later reading.
 
 ## Status
 
@@ -35,12 +57,14 @@ each consuming the shared components in `../../components/`:
 
 - `sender/` - sensor configured `CH_MODE_TRIGGERED_TX_RX`. Configures once, then idles; its IR
   demodulator fires the sensor. Sensor config identical to the wired test's `sender/`.
-- `receiver/` - sensor configured `CH_MODE_TRIGGERED_RX_ONLY`. Owns the Enter -> IR burst -> dump
-  loop (`main/readout_loop.c`); the IR LED driver is `main/ir_led.c`. Sensor config, data-ready
-  callback, and dump format identical to the wired test's `receiver_readout/`.
+- `receiver/` - sensor configured `CH_MODE_TRIGGERED_RX_ONLY`. Owns the console menu and the
+  measurement modes (`main/readout_loop.c`), the tuner dialog (`main/ir_tuner.c`), keypress input
+  (`main/console_io.c`), and the RMT IR waveform driver (`main/ir_led.c`). Sensor config is
+  identical to the wired test's `receiver_readout/`.
 - `include/ir_common.h` - cross-board constants: the sensor values carried over unchanged from
   `pitch_catch_common.h` (`PC_TX_*`, `PC_ODR`, `PC_MAX_RANGE_MM`) plus the IR link
-  (`IR_LED_GPIO`, `IR_CARRIER_HZ`, `IR_BURST_US`, `IR_RESPONSE_TIMEOUT_MS`).
+  (`IR_LED_GPIO`, `IR_CARRIER_HZ`, `IR_BURST_US` (default trigger length), `IR_MAX_SEGMENT_US`,
+  `IR_RESPONSE_TIMEOUT_MS`, `IR_POWER_GPIO`).
 - `host/` - `extract_measurements.py` / `plot_readout.py`, same as the wired test's (see
   "Output format" below).
 
@@ -55,17 +79,19 @@ trigger routines switch the pin back to an output.
 
 ## Output format
 
-Per Enter keypress the receiver prints, on success:
+In mode 2, each Enter keypress prints, on success:
 
 ```
-IQ_BEGIN meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u>
+IQ_BEGIN meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u> pre_on_us=<us> pre_off_us=<us> trig_us=<us>
 IQ,<sample index>,<I>,<Q>
 ...
 IQ_END
 ```
 
-or on timeout, a `no INT2 within 500 ms` warning. `IQ_BEGIN`/`IQ,`/`IQ_END` are plain `printf`
-lines (not `ESP_LOGx`), so the host scripts ignore interleaved log output:
+or on timeout, a `no INT2 within 500 ms` warning. The trailing `pre_on_us`/`pre_off_us`/`trig_us`
+fields record the IR waveform the capture was taken with (`0` = pre-burst disabled); the host
+parser ignores them. `IQ_BEGIN`/`IQ,`/`IQ_END` (and mode 3's `RANGE`) are plain `printf` lines (not
+`ESP_LOGx`), so the host scripts ignore interleaved log output and menu text:
 
 ```
 ./host/extract_measurements.py capture.txt --prefix 2m -o readouts/2m
@@ -90,7 +116,7 @@ board-to-board wires. Additions:
 
 | Signal | ESP32 GPIO | Notes |
 |---|---|---|
-| IR LED drive | 25 | 38 kHz LEDC carrier; active-high (GPIO high = LED on, idles low/off) - confirmed on hardware. Only the receiver drives it. |
+| IR LED drive | 25 | 38 kHz RMT carrier; active-high (GPIO high = LED on, idles low/off) - confirmed on hardware. Only the receiver drives it. |
 | Demodulator out | - | to sensor INT1 (the INT1 net, 2.2k pull-up) |
 | INT1 | 2 | high-impedance input; not driven by firmware |
 | IR module power | 26 | driven high at the very start of `app_main()` (before POST) and never changed - `ir_power_on()` in `include/ir_common.h`. Both boards. |
@@ -102,8 +128,10 @@ board-to-board wires. Additions:
   and the measurement starts, as soon as the demodulator detects the start of the IR burst. The
   timing reference is therefore the demodulator's burst-*start* latency, the same on both boards.
   SonicLib's own trigger is a microsecond-scale low pulse, while the demodulator holds INT1 low
-  for roughly the whole 5 ms burst. That works on hardware, and the burst length does not affect
+  for roughly the whole trigger burst (5 ms by default). That works on hardware, and the burst length does not affect
   trigger timing. It only needs to exceed the demodulator's minimum burst length.
 - **Stray IR**: ambient IR (remotes, sunlight flicker) can make a demodulator fire and trigger a
   measurement nobody asked for. The receiver drains any such measurement before each burst and
   logs `discarding an unrequested measurement`.
+- **Terminal line endings**: a terminal that sends CR+LF for Enter delivers two Enter bytes;
+  `console_getc()` treats a second Enter byte within 20 ms of the first as the same keypress.

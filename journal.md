@@ -1,6 +1,14 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-2-2026
+- Added a console menu to `ir_accuracy_test/receiver` (`m` returns to it): (1) an IR timing tuner
+  that sets an optional pre-burst (carrier on/off, in us) and the trigger-burst length, with Space
+  firing test triggers for the scope; (2) the existing raw I/Q readout, whose `IQ_BEGIN` line now
+  also records the IR timing; (3) one-shot distance readings (`RANGE` lines). Switched the IR
+  waveform from LEDC + busy-wait (~26 us granularity) to the RMT peripheral's carrier modulator,
+  so the whole waveform is hardware-timed to 1 us. Builds clean; not yet run on hardware.
+
 ## 9-28-2026
 - `src/apps/ir_accuracy_test` run on hardware and **passed**: the receiver's 38 kHz IR burst
   triggers both sensors through their demodulators with no board-to-board wires, and the receiver

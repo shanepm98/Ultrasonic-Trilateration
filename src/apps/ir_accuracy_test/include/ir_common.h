@@ -42,7 +42,10 @@
  * demodulator latency. IR_CARRIER_HZ must match the demodulator part's centre frequency. */
 #define IR_LED_GPIO   GPIO_NUM_25
 #define IR_CARRIER_HZ 38000u /* 50% duty-cycle carrier */
-#define IR_BURST_US   5000u  /* carrier-on time per trigger */
+#define IR_BURST_US   5000u  /* default trigger-burst carrier-on time; tunable at runtime */
+
+/* Upper bound for each runtime-tunable IR timing (pre-burst on/off, trigger burst), in us. */
+#define IR_MAX_SEGMENT_US 100000u
 
 /* How long the receiver waits for its own data-ready (INT2) after starting an IR burst. */
 #define IR_RESPONSE_TIMEOUT_MS 500u
