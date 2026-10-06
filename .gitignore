@@ -15,3 +15,6 @@ CAD/Rangefinder_test_schematic_v3/
 __pycache__/
 *.pyc
 .venv/
+
+# Measurement captures (raw I/Q logs, extracted CSVs, plots) - kept locally, not in git
+readouts/

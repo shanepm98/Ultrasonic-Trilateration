@@ -5,10 +5,12 @@
  * Sensor configuration (measurement queue, icu_gpt algorithm + thresholds, max range, triggered
  * RX-only mode) is identical to receiver/main/receiver_loop.c's receiver_configure() - this app
  * only changes what happens after a trigger: instead of a fixed 10 Hz loop reporting the computed
- * distance, it idles for a line typed on the serial console, fires exactly one trigger, and dumps
- * that measurement's full raw I/Q trace as plain text. A ~1.4 KB dump (up to ICU_MAX_NUM_SAMPLES
- * samples x 4 bytes) doesn't fit in a 100 ms trigger interval over a typical console baud rate,
- * so this variant is on-demand rather than free-running - see ../../README.md.
+ * distance, it collects labelled batches. The console prompts for a batch title, the actual
+ * (tape-measured) sender-receiver distance and a reading count, waits for Enter, then fires that
+ * many triggers back-to-back and dumps each measurement's full raw I/Q trace as a BEGIN/END block.
+ * A ~1.4 KB dump (up to ICU_MAX_NUM_SAMPLES samples x 4 bytes) doesn't fit in a 100 ms trigger
+ * interval over a typical console baud rate, so readings are paced by the dump itself rather than
+ * a fixed cadence - see ../../README.md.
  */
 
 #include "readout_loop.h"
@@ -26,6 +28,7 @@
 #include <invn/soniclib/soniclib.h>
 #include <invn/soniclib/sensor_fw/icu_gpt/icu_gpt.h> /* icu_gpt_algo_*, InvnAlgoRangeFinderConfig, ch_thresholds_t */
 
+#include "console_io.h"
 #include "pitch_catch_common.h" /* PC_TX_PULSE_US, PC_ODR, PC_MAX_RANGE_MM, PC_RESPONSE_TIMEOUT_MS,
                                   * PC_SENDER_READY_GPIO */
 
@@ -144,6 +147,30 @@ static int readout_configure(ch_dev_t *dev) {
     return err ? -1 : 0;
 }
 
+/* Read the measurement queue back from the sensor's memory (not SonicLib's host-side copy, which
+ * is what ch_meas_get_odr() returns) and log the ODR the sensor will actually use. Requires
+ * readout_configure(). chdrv_meas_queue_read() is a SonicLib-internal driver call. */
+static void print_sensor_odr(ch_dev_t *dev) {
+    static measurement_queue_t sensor_queue; /* separate buffer - leaves dev->meas_queue untouched */
+
+    if (chdrv_meas_queue_read(dev, &sensor_queue) != 0) {
+        ESP_LOGW(TAG, "measurement queue readback failed - ODR unknown");
+        return;
+    }
+
+    uint8_t odr = sensor_queue.meas[CH_DEFAULT_MEAS_NUM].odr;
+    if (odr < CH_ODR_FREQ_DIV_32 || odr > CH_ODR_FREQ_DIV_2) {
+        ESP_LOGW(TAG, "sensor ODR: %u - not a valid ch_odr_t value", odr);
+        return;
+    }
+    uint32_t divisor = 1u << (7 - odr); /* CH_ODR_FREQ_DIV_8 = 4 -> 2^(7-4) = 8 (ch_odr_t) */
+    ESP_LOGI(TAG, "sensor ODR: %u (op freq / %" PRIu32 " = %" PRIu32 " samples/s)", odr, divisor,
+             ch_get_frequency(dev) / divisor);
+    if (odr != PC_ODR) {
+        ESP_LOGW(TAG, "sensor ODR %u != PC_ODR %u", odr, (unsigned)PC_ODR);
+    }
+}
+
 /* ============================ Sender-ready GPIO ============================ *
  * Same tap as receiver_loop.c - see pitch_catch_common.h. */
 
@@ -160,25 +187,97 @@ static void sender_ready_gpio_init(void) {
     gpio_config(&ready_cfg);
 }
 
-/* ============================ Raw I/Q dump ============================ */
+/* ============================ Batch readout ============================ */
 
-static void print_iq_dump(uint32_t meas_num) {
+#define BATCH_TITLE_MAX    64u   /* incl. NUL */
+#define BATCH_MAX_READINGS 1000u
+#define SENDER_READY_TIMEOUT_MS PC_TRIGGER_INTERVAL_MS
+
+typedef struct {
+    char     title[BATCH_TITLE_MAX];
+    uint32_t actual_mm;
+    uint32_t count;
+} batch_t;
+
+/* Wait for the sender's INT2 (GPIO33) to read high, i.e. its last measurement has been serviced.
+ * Requires sender_ready_gpio_init(). Returns false on timeout. */
+static bool wait_sender_ready(void) {
+    TickType_t start = xTaskGetTickCount();
+    while (gpio_get_level(PC_SENDER_READY_GPIO) == 0) {
+        if (xTaskGetTickCount() - start >= pdMS_TO_TICKS(SENDER_READY_TIMEOUT_MS)) {
+            return false;
+        }
+        vTaskDelay(1);
+    }
+    return true;
+}
+
+/* Every reading prints exactly one BEGIN/END block, so a batch always holds batch->count blocks:
+ * either the meas= summary + IQ rows, or a single error= line. */
+static void print_block_header(const batch_t *batch) {
+    printf("BEGIN\n");
+    printf("title=%s\n", batch->title);
+    printf("actual_mm=%" PRIu32 "\n", batch->actual_mm);
+}
+
+static void print_error_block(const batch_t *batch, uint32_t meas_num, const char *err) {
+    print_block_header(batch);
+    printf("meas=%" PRIu32 " error=%s\n", meas_num, err);
+    printf("END\n");
+}
+
+static void print_iq_block(const batch_t *batch, uint32_t meas_num) {
     if (summary.iq_err != 0) {
-        ESP_LOGW(TAG, "#%" PRIu32 "  ch_get_iq_data() failed, err=%u - no dump", meas_num, summary.iq_err);
+        char err[24];
+        snprintf(err, sizeof(err), "iq_read_failed_%u", summary.iq_err);
+        print_error_block(batch, meas_num, err);
         return;
     }
 
+    print_block_header(batch);
     if (summary.have_target) {
-        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=1 range_mm=%.1f amp=%u\n", meas_num,
+        printf("meas=%" PRIu32 " num_samples=%u target=1 range_mm=%.1f amp=%u\n", meas_num,
                summary.num_samples, summary.range_q5 / 32.0f, summary.amplitude);
     } else {
-        printf("IQ_BEGIN meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0\n", meas_num,
+        printf("meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0\n", meas_num,
                summary.num_samples);
     }
     for (uint16_t i = 0; i < summary.num_samples; i++) {
         printf("IQ,%u,%d,%d\n", i, iq_buf[i].i, iq_buf[i].q);
     }
-    printf("IQ_END\n");
+    printf("END\n");
+}
+
+static void prompt_batch(batch_t *batch) {
+    console_read_line("Batch title: ", batch->title, sizeof(batch->title));
+    batch->actual_mm = console_read_uint("Actual distance (mm): ", 1, PC_MAX_RANGE_MM);
+    batch->count     = console_read_uint("Number of readings: ", 1, BATCH_MAX_READINGS);
+
+    printf("Press ENTER to start %" PRIu32 " readings...", batch->count);
+    fflush(stdout);
+    while (!console_is_enter(console_getc())) {
+    }
+    printf("\n\n");
+}
+
+/* One trigger -> one BEGIN/END block. meas_num counts readings within the batch, from 1. */
+static void run_one_reading(ch_group_t *grp, const batch_t *batch, uint32_t meas_num) {
+    if (!wait_sender_ready()) {
+        print_error_block(batch, meas_num, "sender_not_ready");
+        return;
+    }
+
+    xSemaphoreTake(data_ready_sem, 0); /* drop any stale give from a late previous response */
+
+    /* Pulses this board's INT1; the shared net also fires the sender's sensor. */
+    ch_group_trigger(grp);
+
+    if (xSemaphoreTake(data_ready_sem, pdMS_TO_TICKS(PC_RESPONSE_TIMEOUT_MS)) != pdTRUE) {
+        print_error_block(batch, meas_num, "no_response");
+        return;
+    }
+
+    print_iq_block(batch, meas_num);
 }
 
 /* ============================ Public entry point ============================ */
@@ -203,37 +302,20 @@ void readout_run(ch_group_t *grp, ch_dev_t *dev) {
     }
     ESP_LOGI(TAG, "configured: op freq %" PRIu32 " Hz, %u active samples, max range %u mm",
              ch_get_frequency(dev), ch_get_num_samples(dev), ch_get_max_range(dev));
+    print_sensor_odr(dev);
 
     sender_ready_gpio_init();
+    console_init();
 
-    const TickType_t response_timeout = pdMS_TO_TICKS(PC_RESPONSE_TIMEOUT_MS);
-    char             line[16];
-    uint32_t         n = 0;
+    ESP_LOGI(TAG, "ready - sender-ready on GPIO%d", PC_SENDER_READY_GPIO);
 
-    ESP_LOGI(TAG, "ready - type Enter to trigger a measurement");
-
+    batch_t batch;
     for (;;) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            vTaskDelay(pdMS_TO_TICKS(100)); /* console not connected yet / no input - avoid a busy spin */
-            continue;
+        printf("\n");
+        prompt_batch(&batch);
+        for (uint32_t n = 1; n <= batch.count; n++) {
+            run_one_reading(grp, &batch, n);
         }
-
-        if (gpio_get_level(PC_SENDER_READY_GPIO) == 0) {
-            ESP_LOGW(TAG, "sender not ready (GPIO%d low, INT2 still asserted) - skipping trigger",
-                     PC_SENDER_READY_GPIO);
-            continue;
-        }
-
-        /* Pulses this board's INT1; the shared net also fires the sender's sensor. */
-        ch_group_trigger(grp);
-        n++;
-
-        if (xSemaphoreTake(data_ready_sem, response_timeout) != pdTRUE) {
-            ESP_LOGW(TAG, "#%" PRIu32 "  no response within %u ms - check INT1/INT2 wiring, sender power",
-                     n, (unsigned)PC_RESPONSE_TIMEOUT_MS);
-            continue;
-        }
-
-        print_iq_dump(n);
+        fflush(stdout);
     }
 }

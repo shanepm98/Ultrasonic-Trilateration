@@ -14,6 +14,7 @@
 #include <invn/soniclib/soniclib.h>
 #include <invn/soniclib/details/ch_driver.h>       /* chdrv_prog_ping(), chdrv_dbg_reg_read() */
 #include <invn/soniclib/details/ch_asic_shasta.h>  /* SYS_CTRL_*, SHASTA_DBG_REG_CPU_ID_HI */
+#include <invn/soniclib/details/ch_common.h>       /* PMUT_FREQUENCY_ERROR_CODE */
 
 /* The ICU-20201 is a Shasta-generation SPI part. SonicLib selects SPI vs I2C at compile time;
  * without INCLUDE_SHASTA_SUPPORT it falls back to the CHx01 / I2C path and this POST's SPI
@@ -25,8 +26,10 @@
 static const char *TAG = "POST";
 
 /* ICU-20201 acoustic operating frequency f_op is 85 kHz nominal, 70-95 kHz over process/temp
- * (DS-000478: "nominally 85kHz PMUT"; Operating Frequency 70/85/95 kHz min/typ/max). Outside this
- * window is not an automatic failure (only a zero reading is), but it is worth a warning. */
+ * (DS-000478: "nominally 85kHz PMUT"; Operating Frequency 70/85/95 kHz min/typ/max). A reading
+ * outside this window (with a little margin) fails the POST: every sample-count and range
+ * conversion SonicLib does scales with f_op, so a bad value silently breaks the measurement config
+ * (e.g. f_op = 1 Hz -> 1 active sample). */
 #define POST_FREQ_PLAUSIBLE_LO_HZ 65000u
 #define POST_FREQ_PLAUSIBLE_HI_HZ 100000u
 
@@ -143,14 +146,19 @@ static bool stage_sensor_id(ch_dev_t *dev, const post_config_t *cfg, post_result
 	} else if (out->op_frequency_hz == 0) {
 		pass = false;
 		strcpy(d, "operating frequency read back as 0");
+	} else if (out->op_frequency_hz == PMUT_FREQUENCY_ERROR_CODE) {
+		/* SonicLib substitutes this when the PMUT clock count came back ~0 (ch_common.c,
+		 * ch_common_measure_pmut_frequency()) - the sensor's PMUT clock isn't being counted. */
+		pass = false;
+		strcpy(d, "PMUT frequency count failed (SonicLib error code 1 Hz)");
+	} else if (out->op_frequency_hz < POST_FREQ_PLAUSIBLE_LO_HZ ||
+	           out->op_frequency_hz > POST_FREQ_PLAUSIBLE_HI_HZ) {
+		pass = false;
+		snprintf(d, sizeof(d), "op frequency %" PRIu32 " Hz outside %u-%u Hz", out->op_frequency_hz,
+		         POST_FREQ_PLAUSIBLE_LO_HZ, POST_FREQ_PLAUSIBLE_HI_HZ);
 	} else if (out->rtc_cal_result == 0) {
 		pass = false;
 		strcpy(d, "RTC calibration result is 0");
-	}
-
-	if (pass && (out->op_frequency_hz < POST_FREQ_PLAUSIBLE_LO_HZ ||
-	             out->op_frequency_hz > POST_FREQ_PLAUSIBLE_HI_HZ)) {
-		ESP_LOGW(TAG, "        (op frequency outside the 70-95 kHz band expected for ICU-20201)");
 	}
 
 	stage_set(s, pass, pass ? 0 : 3, d);

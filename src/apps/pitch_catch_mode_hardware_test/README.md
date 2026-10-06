@@ -137,19 +137,52 @@ I/Q trace of each measurement as plain text, for offboard signal processing (e.g
 thresholds/gain against real waveforms in a separate program).
 
 A full I/Q dump (up to `ICU_MAX_NUM_SAMPLES` samples x 4 bytes, ~1.4 KB) doesn't fit inside a
-100 ms trigger interval over a typical console baud rate, so this variant triggers **on demand**
-instead of free-running: type any line (just press Enter) in the serial monitor to fire one
-measurement. Output format:
+100 ms trigger interval over a typical console baud rate, so this variant collects **labelled
+batches** instead of free-running. The serial console prompts for:
+
+1. a batch title (free text, printable ASCII, up to 63 characters),
+2. the actual (tape-measured) sender-receiver distance in mm (1..`PC_MAX_RANGE_MM`),
+3. the number of readings (1..1000),
+
+then waits for Enter and fires that many readings back-to-back. Typed input is echoed and
+Backspace works. Before each trigger it waits up to `PC_TRIGGER_INTERVAL_MS` for the sender-ready
+line (sender INT2 -> receiver GPIO33) to read high. After a batch it prompts for the next title.
+
+Each reading prints exactly one block, so a batch of N always has N blocks:
 
 ```
-IQ_BEGIN meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u>
+BEGIN
+title=<batch title>
+actual_mm=<actual distance>
+meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u>
 IQ,<sample index>,<I>,<Q>
 ...
-IQ_END
+END
 ```
 
-`IQ_BEGIN`/`IQ,`/`IQ_END` are plain `printf` lines (not `ESP_LOGx`), so a host-side script can
-grep for them and ignore interleaved log output.
+`meas` counts from 1 within the batch; `range_mm`/`amp` are the sensor's own `icu_gpt` result. A
+failed reading has a single `meas=<n> error=<reason>` line in place of the summary and `IQ` rows,
+where reason is `sender_not_ready` (GPIO33 stayed low), `no_response` (no data-ready within
+`PC_RESPONSE_TIMEOUT_MS`) or `iq_read_failed_<rc>`.
+
+The blocks are plain `printf` lines (not `ESP_LOGx`), so a host-side script can grep for them and
+ignore interleaved log output.
+
+### Extracting a capture
+
+Log the serial session to a file (e.g. `picocom ... --logfile capture.txt`), then:
+
+```
+./receiver_readout/host/extract_measurements.py capture.txt -o readouts/bench --op-freq 84930 --odr 4
+```
+
+This writes one `idx,i,q` CSV per reading, named `<title>_<meas>.csv`, plus `manifest.csv` with one
+row per block: `title, actual_mm, meas, num_samples, target, range_mm, amp, error, odr, op_freq_hz,
+file`. The operating frequency and ODR set the sample spacing, so they affect every distance derived
+from the I/Q data. Take them from the receiver's startup log (`op freq ... Hz` and `sensor ODR: N`).
+`--odr` defaults to 4 (`PC_ODR`). `--op-freq` has no default; without it the column is blank. Older
+`IQ_BEGIN`/`IQ_END` captures (e.g. `readouts/session.txt`) are still accepted; pass `--prefix` to
+name their files.
 
 ### Plotting a recording
 
@@ -160,7 +193,7 @@ synced hover, ringdown/threshold context pulled from `readout_loop.c`'s current 
 
 ```
 ./host/plot_readout.py recording.csv --open
-./host/plot_readout.py recording.csv --target 0 --range-mm 193.2   # if known, from IQ_BEGIN
+./host/plot_readout.py recording.csv --target 0 --range-mm 193.2   # from the block's meas= line
 ```
 
 See `plot_readout.py --help` for the threshold/ringdown override flags (only needed if

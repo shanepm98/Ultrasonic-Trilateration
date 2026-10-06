@@ -19,7 +19,7 @@ DevKitV1 over SPI, using TDK's SonicLib.
     production firmware.
   - `pitch_catch_mode_hardware_test/{sender,receiver,receiver_readout}` - two-sensor pitch-catch
     with the boards' INT1 trigger lines hardwired together. `receiver_readout` dumps raw I/Q;
-    hardware captures are in `readouts/`.
+    hardware captures go in `readouts/` (gitignored - local only, not in the repo).
   - `ir_accuracy_test/{sender,receiver}` - the same pitch-catch I/Q readout, but triggered by a
     38 kHz IR burst (the receiver's LED drives each board's IR demodulator, whose output goes to
     INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on

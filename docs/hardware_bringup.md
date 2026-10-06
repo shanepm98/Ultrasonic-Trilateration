@@ -23,7 +23,7 @@ callbacks the BSP implements. See `src/components/icu_post/README.md` for the AP
 |---|---|---|
 | 1. SPI link | raw `CPU_ID_HI` read + `chdrv_prog_ping()` | Resets the sensor via its `SYS_CTRL` register and reads the `CPU_ID_HI` debug register back over SPI, checking it equals `SHASTA_CPU_ID_HI_VALUE` (`0x2041`). The raw value is logged first (`0x0000` = unpowered/no MISO, `0xFFFF` = MISO floating, stable-wrong = SPI mode/bit-order/timing). Proves wiring, chip-select, **SPI mode 3**, bit order and framing end to end. The headline "ESP32 can talk to the module" check. |
 | 2. Program + start | `ch_group_start()` then `ch_sensor_is_connected()` | Firmware downloads to the sensor, frequency locks, RTC calibrates. |
-| 3. Sensor identity | `ch_get_part_number` / `ch_get_sensor_id` / `ch_get_fw_version_string` / `ch_get_frequency` / `ch_get_rtc_cal_result` | Programmed sensor reports sane values - part `20201`, operating frequency ~85 kHz (70-95 kHz per DS-000478), non-zero RTC cal. |
+| 3. Sensor identity | `ch_get_part_number` / `ch_get_sensor_id` / `ch_get_fw_version_string` / `ch_get_frequency` / `ch_get_rtc_cal_result` | Programmed sensor reports sane values - part `20201`, operating frequency ~85 kHz (70-95 kHz per DS-000478; outside 65-100 kHz fails), non-zero RTC cal. |
 
 `main/post_main.c` is the bring-up harness (`app_main`): `ch_group_init` -> `ch_init` ->
 `chbsp_esp32_init` -> `post_run` -> `post_report`, retrying every 5 s on failure. Once the POST

@@ -1,6 +1,30 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-5-2026
+- Reworked `pitch_catch_mode_hardware_test/receiver_readout` for batch data collection. The
+  console prompts for a batch title, the actual distance (mm) and a reading count, waits for
+  Enter, then dumps that many readings back-to-back, each as a `BEGIN`/`END` block that starts
+  with the title and actual distance. Failed readings still get a block (an `error=` line), so a
+  batch always has N blocks. Before each trigger the receiver now waits up to 100 ms for the
+  sender-ready line (GPIO33) instead of skipping at once. Reused the IR app's echoing console
+  helper and added a text-line reader. `extract_measurements.py` now parses the new blocks and
+  writes a `manifest.csv` (title, actual vs. measured range, file). It still reads old captures.
+  After configuring, the receiver reads the measurement queue back from the sensor and logs the ODR
+  it will actually use, warning if it differs from `PC_ODR`. Builds clean; not yet run on hardware.
+- First run of the new receiver_readout: the receiver's sensor reported an operating frequency of
+  1 Hz. That's SonicLib's error code: the PMUT clock count during startup came back ~0, while the
+  CPU-clock count, RTC calibration and SPI were all fine. The firmware is unchanged from the
+  earlier good captures (323 samples), so this looks like a sensor/board problem. Still being
+  diagnosed. The POST only warned about it, so the app carried on with a 1-sample configuration.
+  `icu_post` now fails the identity stage when the frequency is outside 65-100 kHz.
+- Fixed `plot_readout.py` (both the pitch-catch and IR copies) reporting half the real distance:
+  it used SonicLib's pulse-echo sample-to-mm formula, which halves the round trip. In pitch-catch
+  the sound crosses once, so the full time of flight is the distance (as in the firmware's
+  `CH_RANGE_DIRECT` range_mm). HTML plots generated before this show half-scale distances.
+- `extract_measurements.py` takes `--op-freq` / `--odr` and records them in every `manifest.csv` row,
+  since both set the sample spacing and so the accuracy of any distance derived from the I/Q.
+
 ## 10-2-2026
 - Added a console menu to `ir_accuracy_test/receiver` (`m` returns to it): (1) an IR timing tuner
   that sets an optional pre-burst (carrier on/off, in us) and the trigger-burst length, with Space

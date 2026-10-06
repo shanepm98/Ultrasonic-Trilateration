@@ -50,6 +50,21 @@ high-impedance on both boards; GPIO26 held high powers the IR module. **Verified
   - [ ] Use the tuner to find the shortest reliable trigger burst and whether a pre-burst
         (demodulator AGC settling) tightens the trigger skew between the boards.
 
+## Hardwired pitch-catch batch readout (`src/apps/pitch_catch_mode_hardware_test/receiver_readout/`)
+Console now prompts for batch title / actual distance (mm) / reading count, then dumps N
+`BEGIN`/`END` blocks (title + actual_mm + sensor summary + I/Q). `host/extract_measurements.py`
+writes per-reading CSVs + `manifest.csv`. **Builds clean (2026-10-05), not yet run on hardware.**
+- [ ] **Blocker (2026-10-05):** receiver's sensor reports op freq 1 Hz (PMUT clock count ~0); the
+      POST now fails on this. Narrow it down: full power-cycle (unplug, not EN); run
+      `echo_mode_hardware_test` on this board; swap boards (receiver_readout on the sender board);
+      scope the sensor's 1.8 V rail during startup; recheck FFC seating / any recent rework.
+- [ ] Flash and walk a batch: prompt echo/Backspace, single Enter starts the batch (no double fire
+      from CR+LF), and N blocks come out for N readings.
+- [ ] Check back-to-back readings don't hit `sender_not_ready`. If they do, measure how long the
+      sender's INT2 (GPIO33) stays low and raise `SENDER_READY_TIMEOUT_MS`.
+- [ ] Capture batches at several known distances (e.g. 250-3000 mm) and plot `range_mm` vs
+      `actual_mm` from `manifest.csv` to get the hardwired baseline error/offset.
+
 ## General performance tweaks
 - [ ] Raise SPI clock if needed. Running at 1MHz right now, can go up to 13MHz
 - [ ] Tune the `RF_*` `#define`s at the top of `rangefinder_loop.c` against real targets:

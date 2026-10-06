@@ -20,8 +20,10 @@ configured in ../receiver/main/readout_loop.c (RX_RINGDOWN_CANCEL_SAMPLES=20,
 rx_thresholds); override with --ringdown-samples / --threshold if that firmware config
 has since been re-tuned.
 
-Sample index is converted to one-way distance using SonicLib's own formula
-(ch_common_samples_to_mm() in ch_common.c): mm = samples * 343 * 1000 * 2^(7-odr) / (op_freq * 2).
+Sample index is converted to sender-receiver distance. In pitch-catch the sound crosses the gap
+once, so the whole time of flight is the distance: mm = samples * 343 * 1000 * 2^(7-odr) / op_freq.
+This matches the firmware's range_mm (SonicLib CH_RANGE_DIRECT). It is NOT SonicLib's
+ch_common_samples_to_mm(), which divides by 2 because it assumes a pulse-echo round trip.
 --odr defaults to 4 (CH_ODR_FREQ_DIV_8 / CH_ODR_DEFAULT, used throughout this project via
 PC_ODR in ir_common.h). --op-freq defaults to 85000 Hz, the operating frequency
 observed during this project's own hardware bring-up (docs/hardware_bringup.md; ICU-20201
@@ -334,11 +336,12 @@ PAGE_TEMPLATE = Template(r"""<title>$title</title>
   var peakThreshold = thresholdAt(peakIdx);
   var aboveThreshold = peakThreshold != null && peakAmp >= peakThreshold;
 
-  // ---- sample index -> one-way distance (mm), per SonicLib's ch_common_samples_to_mm():
-  //   mm = samples * CH_SPEEDOFSOUND_MPS * 1000 * 2^(7-odr) / (op_freq * 2)
+  // ---- sample index -> sender-receiver distance (mm). Pitch-catch: the full time of flight is
+  // the distance (SonicLib CH_RANGE_DIRECT), so no /2 as in ch_common_samples_to_mm()'s echo math:
+  //   mm = samples * CH_SPEEDOFSOUND_MPS * 1000 * 2^(7-odr) / op_freq
   function distanceMmAt(idx) {
     var shift = Math.pow(2, 7 - CFG.odr);
-    return (idx * 343 * 1000 * shift) / (CFG.op_freq_hz * 2);
+    return (idx * 343 * 1000 * shift) / CFG.op_freq_hz;
   }
   function fmtDistance(mm) {
     return mm.toFixed(0) + " mm (" + (mm / 304.8).toFixed(1) + " ft)";
@@ -379,7 +382,7 @@ PAGE_TEMPLATE = Template(r"""<title>$title</title>
   }).join("");
 
   document.getElementById("ampCaption").innerHTML =
-    "Top axis = one-way distance" + (CFG.op_freq_calibrated ? "" : " (approx. - see Peak distance tile)") + ". " +
+    "Top axis = sender-receiver distance" + (CFG.op_freq_calibrated ? "" : " (approx. - see Peak distance tile)") + ". " +
     "Shaded band = ringdown-cancel window (0–" + (CFG.ringdown_samples - 1) + "), excluded from detection. " +
     "Peak (" + peakAmp.toFixed(0) + " @ " + fmtDistance(peakDistanceMm) + ") is " + (aboveThreshold ? "above" : "below") +
     (peakThreshold != null ? " the " + peakThreshold.toLocaleString() + " threshold configured for that window." : " threshold.");

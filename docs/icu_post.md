@@ -74,12 +74,15 @@ firmware version string, operating frequency, and RTC calibration result, then c
 
 - part number matches `cfg.expected_part_number` (default `ICU20201_PART_NUMBER` = 20201; set to
   `0` to disable the check)
-- operating frequency is non-zero (a hard failure — a zero reading means the frequency-lock step
-  didn't actually work)
+- operating frequency is within 65–100 kHz. The ICU-20201's datasheet (DS-000478) specifies
+  70–95 kHz, nominal 85 kHz, across process/temperature; the window adds a little margin. A reading
+  outside it fails the stage, because SonicLib derives every sample count and range conversion
+  from this frequency. Two readings get their own messages:
+  - `0` — the frequency-lock step didn't work.
+  - `1` (`PMUT_FREQUENCY_ERROR_CODE`) — SonicLib's PMUT clock count during `ch_group_start()` came
+    back ~0, so it substituted 1 Hz. Seen on hardware 2026-10-05 (receiver board); left
+    unchecked it produced a 1-sample measurement and a 61 m "max range".
 - RTC calibration result is non-zero
-- (soft check, warning only) operating frequency falls within 65–100 kHz — the ICU-20201's
-  datasheet (DS-000478) specifies 70–95 kHz nominal 85 kHz across process/temperature; a reading
-  outside that band is suspicious but not automatically a failure the way a zero reading is
 
 ## Result structures
 
