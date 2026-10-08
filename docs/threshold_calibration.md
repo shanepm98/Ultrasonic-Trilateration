@@ -23,7 +23,7 @@ with `extract_measurements.py --odr 5`. There are 700 raw I/Q readings in 14 bat
 "TX" and "RX" name which board was turned. The data set is incomplete: the plan is to cover both
 boards turned up to 45° at every distance.
 
-Capture settings, from `pitch_catch_common.h`:
+Capture settings, from `sensor_calibration.h` (`src/components/sensor_calibration/include/`):
 - **TX burst:** 450 µs at pulse width 4. That is about 640 sensor clock counts, which AN-000175
   Table 5 gives as the minimum to fully excite the transducer.
 - **ODR:** f_op/4 (ODR 5), with op freq 88521 Hz.
@@ -148,5 +148,5 @@ To adopt the table in an app:
 2. `#include "sensor_calibration.h"`.
 3. Pass `&sc_rx_thresholds` to `icu_gpt_algo_configure()` in place of the local `rx_thresholds`.
 
-The table assumes the capture conditions recorded as `SC_RX_THRESHOLDS_*` in the header: ODR 5,
-450 µs TX burst and 20-sample ringdown cancel. If any of them changes, regenerate it.
+The table assumes the capture conditions in the same header: `PC_ODR` (ODR 5), `PC_TX_PULSE_US`
+(450 µs) and `SC_RX_THRESHOLDS_RINGDOWN_SAMPLES` (20). If any of them changes, regenerate it.

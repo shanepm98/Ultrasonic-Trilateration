@@ -5,6 +5,9 @@
 - [ ] Add schematic for the IR triggering circuit.
 - [ ] Add schematic for the buffered 32.768KHz clock oscillator
 - [x] Remove the obsolete wireless sync testing and auto-calibration tests
+- [x] Move the shared sensor config (TX burst, ODR, max range) to `src/components/sensor_calibration/include/sensor_calibration.h`
+- [ ] Switch `ir_accuracy_test/include/ir_common.h` to `sensor_calibration.h` - it still defines its own
+	  older `PC_*` values (80 us burst, width 3, `CH_ODR_DEFAULT`)
 - [ ] Revise the documentation to reflect new change in project scope, that being that we are now
 	  only concerned with 2-dimensional positioning for this proof of concept. 
 - [ ] Get website launched to document the process in more detailed writeups of each stage. 

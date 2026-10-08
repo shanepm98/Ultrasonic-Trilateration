@@ -4,8 +4,9 @@ Two independent ESP-IDF apps, each flashed to its own ESP32 + ICU-20201 board, d
 pitch-catch** ranging: the tracked object emits (`sender/`), a fixed beacon listens
 (`receiver/`) - see the top-level project guide. Each consumes the shared components in
 `../../components/`: `soniclib_esp32_bsp` (the BSP), `invn-soniclib` (vendored SonicLib), and
-`icu_post` (the self-test), the same way `echo_mode_hardware_test` does. `include/` holds a
-header shared by both apps (see below).
+`icu_post` (the self-test), the same way `echo_mode_hardware_test` does, plus
+`sensor_calibration` (the shared sensor config). `include/` holds a header shared by both apps
+(see below).
 
 - `sender/` - sensor configured `CH_MODE_TRIGGERED_TX_RX`. Configures once, then idles.
 - `receiver/` - sensor configured `CH_MODE_TRIGGERED_RX_ONLY`. Owns the periodic trigger loop.
@@ -57,17 +58,24 @@ pitch-catch range, since the sender and receiver are separate physical objects (
 co-located setup). This is the only measurement the system reports; the sender produces no local
 data (see above).
 
-## `include/pitch_catch_common.h`
+## Shared constants: `sensor_calibration.h` and `include/pitch_catch_common.h`
 
 Cross-board constants - values where the sender's and receiver's independent calculations must
-numerically agree for the protocol to work - live in `include/pitch_catch_common.h`, included by
-both apps' `main/CMakeLists.txt` (`INCLUDE_DIRS "." "../../include"`), instead of being
-hand-duplicated as matching `#define`s in two independent builds:
+numerically agree for the protocol to work - live in two headers instead of being hand-duplicated
+as matching `#define`s in two independent builds.
+
+`sensor_calibration.h`, in the `src/components/sensor_calibration/` component, holds the measurement
+config that every app (this one and any new one) uses. Apps get it by listing
+`sensor_calibration` in `main/CMakeLists.txt`'s `REQUIRES`:
 
 - `PC_TX_PULSE_US` / `PC_TX_PULSE_WIDTH` / `PC_TX_PHASE` - the sender's TX burst; the receiver's
   count segment must be sized from `PC_TX_PULSE_US` too (AN-000175: the count segment cycle count
   should match the other sensor's transmit cycle count).
 - `PC_ODR`, `PC_MAX_RANGE_MM` - so both sensors interpret sample timing and range the same way.
+
+`include/pitch_catch_common.h` is local to this app (`INCLUDE_DIRS "." "../../include"`). It
+includes `sensor_calibration.h` and adds the values specific to this test setup:
+
 - `PC_TRIGGER_INTERVAL_MS`, `PC_RESPONSE_TIMEOUT_MS` - the receiver's trigger cadence.
 - `PC_SENDER_READY_GPIO` - the receiver's GPIO33 pin assignment for the handshake above.
 

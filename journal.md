@@ -2,6 +2,7 @@
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
 ## 10-7-2026
+- Moved the locked-down sensor config (`PC_TX_PULSE_US`, `PC_TX_PULSE_WIDTH`, `PC_TX_PHASE`, `PC_ODR`, `PC_MAX_RANGE_MM`) out of the apps' local `pitch_catch_common.h` into `src/components/sensor_calibration/include/sensor_calibration.h` (alongside the threshold table, replacing its duplicate `SC_RX_THRESHOLDS_ODR`/`_TX_US` defines), so new apps pull the current values via `REQUIRES sensor_calibration`. The trigger timing and sender-ready GPIO stay in each app's local `pitch_catch_common.h`, which now includes `sensor_calibration.h`. `pitch_catch_mode_hardware_test` and `two-pass_pitch_catch_test` both switched over; all six apps build.
 - Calibrated the receiver's detection thresholds from the 2026-10-05 captures (2400 readings, 1-4 m,
   straight / 30° / 60° / 45°). The old placeholder table missed almost everything past 1 m (0/250
   at 3 m and 4 m straight). New `calibrate_thresholds.py` fits a worst-case amplitude envelope and
