@@ -65,6 +65,27 @@ writes per-reading CSVs + `manifest.csv`. **Builds clean (2026-10-05), not yet r
 - [ ] Capture batches at several known distances (e.g. 250-3000 mm) and plot `range_mm` vs
       `actual_mm` from `manifest.csv` to get the hardwired baseline error/offset.
 
+## Detection threshold calibration (`src/components/sensor_calibration/`)
+8-segment `sc_rx_thresholds` fitted by `receiver_readout/host/calibrate_thresholds.py` from the
+2026-10-07 captures (450 us / PW 4 TX burst, ODR f_op/4, 0.5-5 m). See `docs/threshold_calibration.md`.
+Replay: 50/50 in all 14 batches, including 5 m at 30°, with 0 false detections.
+**Not yet used by any app or tested on hardware.**
+- [ ] Finish the angle sweep: both boards turned up to 45° at each distance (especially 4-5 m at
+      45°), then re-run the script (`--dry-run` first).
+- [ ] Re-check the 5 m distance: its pulse arrives 6 samples (~93 mm) early. Every other batch is
+      within ±2 samples.
+- [ ] Integrate into `receiver_readout` (REQUIRES `sensor_calibration`, pass `&sc_rx_thresholds` to
+      `icu_gpt_algo_configure()`), re-run batches and check the `target=1` rate in `manifest.csv`.
+      Then do the same for `receiver/`. `ir_accuracy_test` still uses the old 80 us / ODR 4 settings
+      (`ir_common.h`), so it needs those updated first.
+- [ ] Pin down the threshold scale k (|I,Q| per threshold unit). The fits so far are 1.44-1.50
+      (2026-10-07) and 1.45-1.70 (2026-10-05), so the detector isn't exactly |I,Q|/k. Capture a batch
+      with a known-flat threshold near the signal level to measure it directly.
+- [ ] Ranging offset. With the 450 us burst the firmware `range_mm` is 437 / 1430 / 2922 / 4022 at
+      0.5 / 1.5 / 3 / 4 m. Detection fires on the pulse's 10-sample rising edge, so the error depends
+      on signal strength. Find a correction, e.g. a fixed offset plus a dependence on amplitude.
+- [ ] Update `extract_measurements.py` / `plot_readout.py` `--odr` defaults (still 4) to match `PC_ODR` (5).
+
 ## General performance tweaks
 - [ ] Raise SPI clock if needed. Running at 1MHz right now, can go up to 13MHz
 - [ ] Tune the `RF_*` `#define`s at the top of `rangefinder_loop.c` against real targets:

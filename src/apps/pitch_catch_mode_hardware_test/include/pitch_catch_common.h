@@ -23,11 +23,13 @@
  * transmit cycle count." Each board converts us -> cycles itself via ch_usec_to_cycles() against
  * its own calibrated op-frequency, so this stays correct even though the two sensors' natural
  * frequencies differ slightly. */
-#define PC_TX_PULSE_US    80u
-#define PC_TX_PULSE_WIDTH 3u
+#define PC_TX_PULSE_US    450u /* ~640 SMCLK counts: AN-000175 Table 5's minimum to fully excite the MEMS */
+#define PC_TX_PULSE_WIDTH 4u   /* max drive (AN-000175 Table 6); disables a sensor power-saving feature */
 #define PC_TX_PHASE       8u
 
-#define PC_ODR CH_ODR_DEFAULT /* must match so both sensors interpret sample timing the same way */
+/* f_op/4: ~15.5 mm/sample one-way. ch_set_max_range() clamps to the firmware's max sample count,
+ * which at this ODR still covers ~5.3 m one-way. */
+#define PC_ODR CH_ODR_FREQ_DIV_4 /* must match so both sensors interpret sample timing the same way */
 
 #define PC_MAX_RANGE_MM 5000u /* one-way full-scale range, both sides */
 

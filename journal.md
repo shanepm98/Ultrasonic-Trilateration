@@ -1,6 +1,26 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-7-2026
+- Calibrated the receiver's detection thresholds from the 2026-10-05 captures (2400 readings, 1-4 m,
+  straight / 30° / 60° / 45°). The old placeholder table missed almost everything past 1 m (0/250
+  at 3 m and 4 m straight). New `calibrate_thresholds.py` fits a worst-case amplitude envelope and
+  writes an 8-segment table to the new `src/components/sensor_calibration/` component. Replayed on
+  the recordings, it detects every reading in every fitted batch with no false detections. The
+  45° batches at 1-3 m are included in the fit. 4 m 45° is discarded, because its peak is only 1.3x
+  the noise. Not yet used by any app
+  or tested on hardware. Write-up in `docs/threshold_calibration.md`.
+- Lengthened the pitch-catch TX burst from 80 us (~113 SMCLK counts, ~1/6 of the ~640 that AN-000175
+  says fully excites the MEMS) to 450 us. Raised the pulse width from 3 to 4 (max drive). Switched the
+  shared ODR to f_op/4. `sender` and `receiver` rebuild clean. Not yet flashed, and the new threshold
+  table must be regenerated for the new ODR.
+- Re-recorded with the new burst: 700 readings at 0.5-5 m, straight, 30° and 45°, turning either the
+  TX or the RX board. The signal is much stronger (3 m straight p50 1162 vs 708). The script now finds
+  each batch's arrival from the data and allows for the burst's 10-sample ramp-up. Regenerated
+  `sc_rx_thresholds`. Replay detects 50/50 in all 14 batches, including 5 m at 30°, with 0 false
+  detections. The 5 m pulse arrives ~93 mm early, so that tape distance needs re-checking. The
+  data set is still incomplete: the full 45° sweep for both boards is still to come.
+
 ## 10-5-2026
 - Reworked `pitch_catch_mode_hardware_test/receiver_readout` for batch data collection. The
   console prompts for a batch title, the actual distance (mm) and a reading count, waits for

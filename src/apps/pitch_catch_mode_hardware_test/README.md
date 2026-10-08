@@ -198,3 +198,10 @@ synced hover, ringdown/threshold context pulled from `readout_loop.c`'s current 
 
 See `plot_readout.py --help` for the threshold/ringdown override flags (only needed if
 `readout_loop.c`'s `rx_thresholds`/`RX_RINGDOWN_CANCEL_SAMPLES` have since been re-tuned).
+
+### Calibrating the detection thresholds
+
+`receiver_readout/host/calibrate_thresholds.py` fits an 8-segment threshold table to an extracted
+capture directory (default `readouts/parsed`), replays it against every reading, and writes it to
+`src/components/sensor_calibration/rx_thresholds.c` (`--dry-run` to only report). See
+`docs/threshold_calibration.md`.
