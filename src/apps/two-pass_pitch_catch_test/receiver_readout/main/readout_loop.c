@@ -40,6 +40,7 @@
 #include <invn/soniclib/sensor_fw/icu_gpt/icu_gpt.h> /* icu_gpt_algo_*, InvnAlgoRangeFinderConfig, ch_thresholds_t */
 
 #include "console_io.h"
+#include "sensor_calibration.h" /* sc_rx_thresholds, SC_RX_THRESHOLDS_RINGDOWN_SAMPLES */
 #include "sensor_offsets.h"     /* TRANSMITTER_OFFSET, RECEIVER_OFFSET */
 #include "pitch_catch_common.h" /* PC_TX_PULSE_US, PC_ODR, PC_MAX_RANGE_MM, PC_RESPONSE_TIMEOUT_MS,
                                   * PC_SENDER_READY_GPIO */
@@ -47,29 +48,16 @@
 static const char *TAG = "two-pass-rx-readout";
 
 /* ============================ Application configuration ============================ *
- * Same values as receiver/main/receiver_loop.c - this RX-only sensor's own noise floor/ringdown
- * is independently tunable from the sender's, and identical starting points make the two apps'
- * output directly comparable on the bench. */
+ * The coarse pass's detection thresholds are the bench-calibrated sc_rx_thresholds from the
+ * sensor_calibration component (fitted at PC_ODR / PC_TX_PULSE_US - the coarse pass's settings).
+ * Its ringdown cancel must match the one used during that capture. */
 
 #define RX_GAIN_REDUCE 0u
 #define RX_ATTEN       0u
 
-#define RX_RINGDOWN_CANCEL_SAMPLES 20u
+#define RX_RINGDOWN_CANCEL_SAMPLES SC_RX_THRESHOLDS_RINGDOWN_SAMPLES
 #define RX_STATIC_FILTER_SAMPLES   0u
 #define RX_NUM_RANGES              1u
-
-static const ch_thresholds_t rx_thresholds = {
-    .threshold = {
-        {.start_sample = 0, .level = 2500},
-        {.start_sample = 30, .level = 1200},
-        {.start_sample = 60, .level = 700},
-        {.start_sample = 120, .level = 450},
-        {.start_sample = 200, .level = 350},
-        {.start_sample = 0, .level = 0},
-        {.start_sample = 0, .level = 0},
-        {.start_sample = 0, .level = 0},
-    },
-};
 
 static const icu_gpt_algo_config_t rx_gpt_cfg = {
     .ringdown_cancel_samples = RX_RINGDOWN_CANCEL_SAMPLES,
@@ -182,7 +170,7 @@ static int readout_configure(ch_dev_t *dev) {
 
     /* GPT rangefinding algorithm + thresholds */
     err |= icu_gpt_algo_init(dev, &rx_algo_cfg);
-    err |= icu_gpt_algo_configure(dev, TP_COARSE_MEAS, &rx_gpt_cfg, &rx_thresholds);
+    err |= icu_gpt_algo_configure(dev, TP_COARSE_MEAS, &rx_gpt_cfg, &sc_rx_thresholds);
 
     /* Coarse queue: count (matching the sender's TX burst duration) -> receive, no transmit
      * segment - see AN-000175 ("Count Segments"). */

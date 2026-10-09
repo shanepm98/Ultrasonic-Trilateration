@@ -27,8 +27,12 @@ The ICU sensor holds two measurement definitions, and the receiver uses one per 
 
 | Slot | Pass | ODR | Queue |
 |---|---|---|---|
-| meas 0 | coarse | `PC_ODR` (f_op/4) | count (TX match) -> rx, ~5 m |
+| meas 0 | coarse | `PC_ODR` (f_op/4) | count (TX match) -> rx, ~5 m; `sc_rx_thresholds` |
 | meas 1 | fine | f_op/2 | count (TX match + pad) -> rx, ~2.5 m |
+
+The coarse pass detects with the bench-calibrated `sc_rx_thresholds` from the `sensor_calibration`
+component, with its ringdown cancel tied to `SC_RX_THRESHOLDS_RINGDOWN_SAMPLES`. That table was
+fitted at the coarse pass's ODR and TX burst.
 
 For each reading the receiver:
 1. Triggers the coarse pass. If it finds no target, no fine pass is run.

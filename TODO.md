@@ -90,7 +90,7 @@ Coarse f_op/4 pass picks a band, then a fine f_op/2 pass with a padded window. *
 8-segment `sc_rx_thresholds` fitted by `receiver_readout/host/calibrate_thresholds.py` from the
 2026-10-07 captures (450 us / PW 4 TX burst, ODR f_op/4, 0.5-5 m). See `docs/threshold_calibration.md`.
 Replay: 50/50 in all 14 batches, including 5 m at 30°, with 0 false detections.
-**Not yet used by any app or tested on hardware.**
+**Used by the two-pass `receiver_readout`'s coarse pass (2026-10-09); not yet tested on hardware.**
 - [ ] Finish the angle sweep: both boards turned up to 45° at each distance (especially 4-5 m at
       45°), then re-run the script (`--dry-run` first).
 - [ ] Re-check the 5 m distance: its pulse arrives 6 samples (~93 mm) early. Every other batch is
