@@ -1,6 +1,11 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-8-2026
+- Implemented the two-pass pitch-catch readout (`src/apps/two-pass_pitch_catch_test/receiver_readout/`). The sender is unchanged; the receiver triggers it twice per reading. The two passes use the ICU's two measurement slots: meas 0 is the coarse f_op/4 pass, meas 1 the fine f_op/2 pass. Before each fine pass, the fine slot's count segment is lengthened by a 0 / 1.25 / 2.5 m pad (band picked from the coarse range), and its thresholds become a gate around the coarse distance. Both passes' I/Q are dumped. The host scripts now understand the new `pass=` line and the `--pad-mm` axis shift. Builds clean; not yet run on hardware.
+- Found in SonicLib that the pad should already be compensated: RX-only count segments are counted as pre-RX time, and `icu_gpt` adds that back into the time of flight. Needs hardware confirmation.
+- Gotchas: `ch_get_num_samples()` only reports meas 0, and `ch_meas_insert_segment()` at index 0 reads out of bounds (so the pad is set by editing the instruction length directly). The fine gate level is a placeholder until f_op/2 captures exist.
+
 ## 10-7-2026
 - Moved the locked-down sensor config (`PC_TX_PULSE_US`, `PC_TX_PULSE_WIDTH`, `PC_TX_PHASE`, `PC_ODR`, `PC_MAX_RANGE_MM`) out of the apps' local `pitch_catch_common.h` into `src/components/sensor_calibration/include/sensor_calibration.h` (alongside the threshold table, replacing its duplicate `SC_RX_THRESHOLDS_ODR`/`_TX_US` defines), so new apps pull the current values via `REQUIRES sensor_calibration`. The trigger timing and sender-ready GPIO stay in each app's local `pitch_catch_common.h`, which now includes `sensor_calibration.h`. `pitch_catch_mode_hardware_test` and `two-pass_pitch_catch_test` both switched over; all six apps build.
 - Calibrated the receiver's detection thresholds from the 2026-10-05 captures (2400 readings, 1-4 m,

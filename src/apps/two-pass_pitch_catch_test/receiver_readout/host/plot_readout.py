@@ -14,6 +14,7 @@ Usage:
     ./plot_readout.py recording.csv -o out.html --open
     ./plot_readout.py recording.csv --target 1 --range-mm 193.2 --amp 4667
     ./plot_readout.py recording.csv --op-freq 84930   # exact reading -> exact distance axis
+    ./plot_readout.py b_3_fine.csv --odr 6 --pad-mm 2500   # two-pass fine pass
 
 The ringdown-cancel window and detection thresholds default to the values currently
 configured in receiver_readout/main/readout_loop.c (RX_RINGDOWN_CANCEL_SAMPLES=20,
@@ -338,10 +339,11 @@ PAGE_TEMPLATE = Template(r"""<title>$title</title>
 
   // ---- sample index -> sender-receiver distance (mm). Pitch-catch: the full time of flight is
   // the distance (SonicLib CH_RANGE_DIRECT), so no /2 as in ch_common_samples_to_mm()'s echo math:
-  //   mm = samples * CH_SPEEDOFSOUND_MPS * 1000 * 2^(7-odr) / op_freq
+  //   mm = pad_mm + samples * CH_SPEEDOFSOUND_MPS * 1000 * 2^(7-odr) / op_freq
+  // pad_mm is the two-pass fine window's start (0 for a coarse / unpadded recording).
   function distanceMmAt(idx) {
     var shift = Math.pow(2, 7 - CFG.odr);
-    return (idx * 343 * 1000 * shift) / CFG.op_freq_hz;
+    return CFG.pad_mm + (idx * 343 * 1000 * shift) / CFG.op_freq_hz;
   }
   function fmtDistance(mm) {
     return mm.toFixed(0) + " mm (" + (mm / 304.8).toFixed(1) + " ft)";
@@ -573,6 +575,7 @@ def render_html(iq, args):
         "csv_name": Path(args.csv).name,
         "op_freq_hz": args.op_freq,
         "odr": args.odr,
+        "pad_mm": args.pad_mm,
         "op_freq_calibrated": args.op_freq != DEFAULT_OP_FREQ_HZ,
     }
 
@@ -610,6 +613,9 @@ def main():
     parser.add_argument("--odr", type=int, default=DEFAULT_ODR, choices=[2, 3, 4, 5, 6], metavar="N",
                          help=f"CH_ODR_FREQ_DIV_* enum value used for the recording (default: {DEFAULT_ODR}, "
                               f"CH_ODR_DEFAULT - PC_ODR in pitch_catch_common.h)")
+    parser.add_argument("--pad-mm", type=float, default=0.0, metavar="MM",
+                         help="two-pass fine pass: the window's pad (pad_mm in the manifest), added to the "
+                              "distance axis so it reads absolute distance (default: 0)")
     args = parser.parse_args()
 
     if not args.threshold:

@@ -5,7 +5,7 @@
  * FFC / wiring can be re-seated and watched for recovery.
  *
  * This is a bring-up harness, not the production application - it only builds as part of the
- * src/apps/pitch_catch_mode_hardware_test/sender app (pitch-catch transmit/receive node; the
+ * src/apps/two-pass_pitch_catch_test/sender app (pitch-catch transmit/receive node; the
  * receiver has its own app).
  */
 

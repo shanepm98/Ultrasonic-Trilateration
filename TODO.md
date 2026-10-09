@@ -68,6 +68,21 @@ writes per-reading CSVs + `manifest.csv`. **Builds clean (2026-10-05), not yet r
 - [ ] Capture batches at several known distances (e.g. 250-3000 mm) and plot `range_mm` vs
       `actual_mm` from `manifest.csv` to get the hardwired baseline error/offset.
 
+## Two-pass pitch-catch (`src/apps/two-pass_pitch_catch_test/receiver_readout/`)
+Coarse f_op/4 pass picks a band, then a fine f_op/2 pass with a padded window. **Builds clean
+(2026-10-08), not yet run on hardware.** See the app's README.
+- [ ] Flash `sender` + `receiver_readout`. Check that the startup log shows meas 0 at ODR 5 and
+      meas 1 at ODR 6, and that readings never come back `wrong_slot`.
+- [ ] Capture batches in each band (e.g. 1 m, 2.5 m, 4 m). Check that the fine pulse lands at
+      sample ≈ (coarse_mm - pad_mm) / Δ_fine. If the fine `range_mm` is about `pad_mm` short,
+      SonicLib isn't compensating for the pad - add it in software.
+- [ ] Calibrate `TP_GATE_LEVEL` (and `TP_GATE_HALF_MM`) from the fine-pass I/Q. It is a placeholder.
+- [ ] Watch for `sender_not_ready` on the fine trigger. If it shows up, raise `TP_PASS_GAP_MS`.
+- [ ] Compare fine vs coarse `range_mm` spread at each distance, to see whether the extra
+      resolution pays off.
+- [ ] Once it's validated, port the flow to a live-distance receiver app. The copied `receiver/`
+      was removed.
+
 ## Detection threshold calibration (`src/components/sensor_calibration/`)
 8-segment `sc_rx_thresholds` fitted by `receiver_readout/host/calibrate_thresholds.py` from the
 2026-10-07 captures (450 us / PW 4 TX burst, ODR f_op/4, 0.5-5 m). See `docs/threshold_calibration.md`.

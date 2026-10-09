@@ -5,7 +5,7 @@
  * FFC / wiring can be re-seated and watched for recovery.
  *
  * This is a bring-up harness, not the production application - it only builds as part of the
- * src/apps/pitch_catch_mode_hardware_test/receiver_readout app (raw I/Q dump variant of the
+ * src/apps/two-pass_pitch_catch_test/receiver_readout app (raw I/Q dump variant of the
  * pitch-catch receiver, for offboard tuning; the normal reporting receiver is a separate app).
  */
 
