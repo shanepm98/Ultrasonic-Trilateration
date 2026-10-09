@@ -17,7 +17,9 @@ DevKitV1 over SPI, using TDK's SonicLib.
     see `docs/threshold_calibration.md`. Not yet adopted by any app. `include/sensor_calibration.h`
     also holds the locked-down measurement config (`PC_TX_PULSE_US`, `PC_TX_PULSE_WIDTH`,
     `PC_TX_PHASE`, `PC_ODR`, `PC_MAX_RANGE_MM`); new apps get it via `REQUIRES sensor_calibration`
-    instead of copying the values.
+    instead of copying the values. `include/sensor_offsets.h` holds `TRANSMITTER_OFFSET` /
+    `RECEIVER_OFFSET` (mm, transducer to the base of each unit, where the actual distance is
+    measured), added to the sensor's range by the two-pass `receiver_readout`.
 - `src/apps/<name>/` - thin ESP-IDF projects. Each has `CMakeLists.txt` (sets
   `EXTRA_COMPONENT_DIRS` to `../../components`), `main/`, `sdkconfig.defaults`, `build.sh`.
   - `echo_mode_hardware_test/` - flashes the POST + free-running echo-mode (pulse-echo, single

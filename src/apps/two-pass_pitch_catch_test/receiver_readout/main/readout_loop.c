@@ -38,6 +38,7 @@
 #include <invn/soniclib/sensor_fw/icu_gpt/icu_gpt.h> /* icu_gpt_algo_*, InvnAlgoRangeFinderConfig, ch_thresholds_t */
 
 #include "console_io.h"
+#include "sensor_offsets.h"     /* TRANSMITTER_OFFSET, RECEIVER_OFFSET */
 #include "pitch_catch_common.h" /* PC_TX_PULSE_US, PC_ODR, PC_MAX_RANGE_MM, PC_RESPONSE_TIMEOUT_MS,
                                   * PC_SENDER_READY_GPIO */
 
@@ -387,8 +388,10 @@ static void print_iq_block(const batch_t *batch, const char *pass_line, uint32_t
 
     print_block_header(batch, pass_line);
     if (sum->have_target) {
+        /* range_mm is corrected to the base of each unit, where actual_mm is measured from. */
+        float range_mm = sum->range_q5 / 32.0f + TRANSMITTER_OFFSET + RECEIVER_OFFSET;
         printf("meas=%" PRIu32 " num_samples=%u target=1 range_mm=%.1f amp=%u\n", meas_num,
-               sum->num_samples, sum->range_q5 / 32.0f, sum->amplitude);
+               sum->num_samples, range_mm, sum->amplitude);
     } else {
         printf("meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0\n", meas_num, sum->num_samples);
     }
@@ -457,7 +460,8 @@ static void run_one_reading(ch_group_t *grp, ch_dev_t *dev, const batch_t *batch
         return;
     }
 
-    /* Fine pass */
+    /* Fine pass. Band and gate use the sensor's own (uncorrected) range: the fine window and its
+     * samples are in the sensor's time base, so the mounting offsets don't belong here. */
     uint32_t coarse_mm = summary[TP_COARSE_MEAS].range_q5 / 32u;
     if (fine_prepare(dev, coarse_mm, &plan) != 0) {
         err = "fine_config_failed";

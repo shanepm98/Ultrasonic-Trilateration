@@ -75,6 +75,12 @@ IQ,...
 END
 ```
 
+`range_mm` is the sensor's range plus `TRANSMITTER_OFFSET` + `RECEIVER_OFFSET` (from
+`sensor_offsets.h` in `sensor_calibration`, currently 23.25 mm each). Those offsets run from each
+transducer to the base of its unit, where `actual_mm` is measured from. `coarse_mm` on the fine line
+is the coarse pass's *uncorrected* range, because it is what the band and gate are computed from,
+in the sensor's own time base.
+
 Fine-pass error reasons, besides the usual `sender_not_ready` / `no_response` /
 `iq_read_failed_<rc>`:
 - `no_coarse_target`: the coarse pass found no target.

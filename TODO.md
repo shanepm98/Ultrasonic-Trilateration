@@ -76,6 +76,9 @@ Coarse f_op/4 pass picks a band, then a fine f_op/2 pass with a padded window. *
 - [ ] Capture batches in each band (e.g. 1 m, 2.5 m, 4 m). Check that the fine pulse lands at
       sample ≈ (coarse_mm - pad_mm) / Δ_fine. If the fine `range_mm` is about `pad_mm` short,
       SonicLib isn't compensating for the pad - add it in software.
+- [ ] Check the mounting offsets (`TRANSMITTER_OFFSET` / `RECEIVER_OFFSET` in
+      `sensor_calibration/include/sensor_offsets.h`, 23.25 mm each). They're added to the printed
+      `range_mm`. Measure them on the units and see how much of the ranging offset they explain.
 - [ ] Calibrate `TP_GATE_LEVEL` (and `TP_GATE_HALF_MM`) from the fine-pass I/Q. It is a placeholder.
 - [ ] Watch for `sender_not_ready` on the fine trigger. If it shows up, raise `TP_PASS_GAP_MS`.
 - [ ] Compare fine vs coarse `range_mm` spread at each distance, to see whether the extra
