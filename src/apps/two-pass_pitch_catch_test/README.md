@@ -20,7 +20,8 @@ It may also be necessary to account for the count cycles, if the sensor does not
 ## Implementation (`receiver_readout/`)
 The sender is unchanged from `pitch_catch_mode_hardware_test`. It sends the same chirp every time
 the receiver pulls the shared INT1 line. Only `receiver_readout/` implements the two-pass flow, as a
-data-collection tool. It dumps both passes' raw I/Q so the fine pass can be tuned offline.
+data-collection tool. It prints the coarse pass's distance and the fine pass's raw I/Q, so the fine
+pass can be tuned offline.
 
 The ICU sensor holds two measurement definitions, and the receiver uses one per pass:
 
@@ -35,8 +36,8 @@ For each reading the receiver:
    segment by the pad, and sets the fine slot's thresholds to a gate around the expected arrival.
 3. Makes the fine slot active (`ch_meas_standby(dev, 0)`) and waits `TP_PASS_GAP_MS`.
 4. Triggers the fine pass, then switches back to the coarse slot.
-5. Prints both blocks. Both passes are captured before printing, so serial output doesn't stretch
-   the time between the chirps.
+5. Prints both blocks. Only the fine pass's I/Q is read from the sensor. Nothing is printed until
+   both passes are done, so serial output doesn't stretch the time between the chirps.
 
 **Count-cycle compensation (open question above).** SonicLib already handles this in software. For
 an RX-only measurement, it counts every count segment before the receive segment as pre-RX time
@@ -63,8 +64,6 @@ title=<batch title>
 actual_mm=<actual distance>
 pass=coarse odr=5
 meas=<n> num_samples=<N> target=<0|1> range_mm=<mm|NA> amp=<u>
-IQ,<sample index>,<I>,<Q>
-...
 END
 BEGIN
 title=<batch title>
@@ -89,7 +88,10 @@ Fine-pass error reasons, besides the usual `sender_not_ready` / `no_response` /
 - `fine_config_failed`: the pad or gate couldn't be written.
 
 Host side:
-- `host/extract_measurements.py` writes `<title>_<n>_coarse.csv` / `<title>_<n>_fine.csv`. It adds
+The coarse block has only the summary line (the sensor's distance), with no `IQ` rows.
+
+- `host/extract_measurements.py` writes `<title>_<n>_fine.csv` (coarse blocks have no I/Q, so they
+  get a manifest row but no CSV). It adds
   `pass`, `band`, `pad_mm` and `coarse_mm` columns to `manifest.csv`, and takes `odr` from each block.
 - `host/plot_readout.py <fine csv> --odr 6 --pad-mm <pad_mm> --op-freq <Hz>` plots a fine pass on
   an absolute distance axis.

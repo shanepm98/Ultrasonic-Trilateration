@@ -9,11 +9,13 @@
  *     each fine pass the pad is set from the coarse distance (one of three bands - see ../../README.md)
  *     and the detection thresholds become a gate around the expected arrival.
  * The sender is unchanged: the receiver fires it over the shared INT1 line for both passes, and it
- * sends the same chirp each time. Both passes' I/Q are captured before anything is printed, so the
- * serial dump doesn't stretch the time between the two chirps.
+ * sends the same chirp each time. Only the fine pass's I/Q is read out; the coarse pass reports just
+ * the sensor's distance. Nothing is printed until both passes are done, so the serial dump doesn't
+ * stretch the time between the two chirps.
  *
  * The console prompts for a batch title, the actual (tape-measured) sender-receiver distance and a
- * reading count, waits for Enter, then runs that many pairs and dumps each pass as a BEGIN/END block.
+ * reading count, waits for Enter, then runs that many pairs and prints each pass as a BEGIN/END block
+ * (coarse: distance summary only; fine: summary + raw I/Q).
  *
  * Pad compensation: for an RX-only measurement SonicLib counts every COUNT segment before the
  * receive segment as pre-RX time (ch_common_meas_update_counts()), and icu_gpt adds it back into
@@ -128,10 +130,10 @@ typedef struct {
     uint8_t  iq_err; /* ch_get_iq_data() return code; 0 = OK */
 } readout_summary_t;
 
-/* One summary + I/Q buffer per measurement slot, indexed by ch_meas_get_last_num(). Only one
- * measurement is ever in flight at a time (on-demand triggering), and a pair's two passes land in
- * different slots, so both survive until the pair is printed. */
-static ch_iq_sample_t     iq_buf[2][ICU_MAX_NUM_SAMPLES];
+/* One summary per measurement slot, indexed by ch_meas_get_last_num(). Only one measurement is
+ * ever in flight at a time (on-demand triggering), and a pair's two passes land in different
+ * slots, so both survive until the pair is printed. Only the fine pass's I/Q is read out. */
+static ch_iq_sample_t     iq_buf[ICU_MAX_NUM_SAMPLES];
 static readout_summary_t  summary[2];
 static uint8_t            last_slot; /* slot of the most recent data-ready */
 static SemaphoreHandle_t  data_ready_sem;
@@ -157,7 +159,8 @@ static void readout_data_ready_cb(ch_group_t *grp, uint8_t io_index, ch_interrup
         sum->num_samples = ICU_MAX_NUM_SAMPLES; /* defensive */
     }
 
-    sum->iq_err = ch_get_iq_data(dev, iq_buf[slot], 0, sum->num_samples, CH_IO_MODE_BLOCK);
+    /* Coarse pass: distance only - skipping its I/Q read also keeps the gap to the fine pass short. */
+    sum->iq_err = (slot == TP_FINE_MEAS) ? ch_get_iq_data(dev, iq_buf, 0, sum->num_samples, CH_IO_MODE_BLOCK) : 0;
 
     last_slot = slot;
     xSemaphoreGive(data_ready_sem);
@@ -361,7 +364,8 @@ static bool wait_sender_ready(void) {
 }
 
 /* Every pass prints exactly one BEGIN/END block, so a batch always holds 2 * batch->count blocks
- * (coarse then fine): either the meas= summary + IQ rows, or a single error= line. The pass= line
+ * (coarse then fine): either the meas= summary (+ IQ rows for the fine pass), or a single error=
+ * line. The pass= line
  * identifies the pass; extract_measurements.py records it in the manifest. */
 static void print_block_header(const batch_t *batch, const char *pass_line) {
     printf("BEGIN\n");
@@ -376,7 +380,8 @@ static void print_error_block(const batch_t *batch, const char *pass_line, uint3
     printf("END\n");
 }
 
-static void print_iq_block(const batch_t *batch, const char *pass_line, uint32_t meas_num, uint8_t slot) {
+/* Summary line for the pass in slot; the fine pass also gets its IQ rows. */
+static void print_pass_block(const batch_t *batch, const char *pass_line, uint32_t meas_num, uint8_t slot) {
     const readout_summary_t *sum = &summary[slot];
 
     if (sum->iq_err != 0) {
@@ -395,8 +400,8 @@ static void print_iq_block(const batch_t *batch, const char *pass_line, uint32_t
     } else {
         printf("meas=%" PRIu32 " num_samples=%u target=0 range_mm=NA amp=0\n", meas_num, sum->num_samples);
     }
-    for (uint16_t i = 0; i < sum->num_samples; i++) {
-        printf("IQ,%u,%d,%d\n", i, iq_buf[slot][i].i, iq_buf[slot][i].q);
+    for (uint16_t i = 0; slot == TP_FINE_MEAS && i < sum->num_samples; i++) {
+        printf("IQ,%u,%d,%d\n", i, iq_buf[i].i, iq_buf[i].q);
     }
     printf("END\n");
 }
@@ -455,7 +460,7 @@ static void run_one_reading(ch_group_t *grp, ch_dev_t *dev, const batch_t *batch
         return;
     }
     if (!summary[TP_COARSE_MEAS].have_target) {
-        print_iq_block(batch, coarse_line, meas_num, TP_COARSE_MEAS);
+        print_pass_block(batch, coarse_line, meas_num, TP_COARSE_MEAS);
         print_error_block(batch, fine_line, meas_num, "no_coarse_target");
         return;
     }
@@ -474,14 +479,16 @@ static void run_one_reading(ch_group_t *grp, ch_dev_t *dev, const batch_t *batch
     }
     fine_restore(dev);
 
-    snprintf(fine_line, sizeof(fine_line), "pass=fine odr=%u band=%u pad_mm=%u coarse_mm=%" PRIu32,
-             (unsigned)TP_FINE_ODR, plan.band, plan.pad_mm, plan.coarse_mm);
+    /* coarse_mm: the coarse pass's range as reported by the sensor (no mounting offsets), at full
+     * resolution - the band/gate math above uses it truncated to whole mm. */
+    snprintf(fine_line, sizeof(fine_line), "pass=fine odr=%u band=%u pad_mm=%u coarse_mm=%.1f",
+             (unsigned)TP_FINE_ODR, plan.band, plan.pad_mm, summary[TP_COARSE_MEAS].range_q5 / 32.0f);
 
-    print_iq_block(batch, coarse_line, meas_num, TP_COARSE_MEAS);
+    print_pass_block(batch, coarse_line, meas_num, TP_COARSE_MEAS);
     if (err != NULL) {
         print_error_block(batch, fine_line, meas_num, err);
     } else {
-        print_iq_block(batch, fine_line, meas_num, TP_FINE_MEAS);
+        print_pass_block(batch, fine_line, meas_num, TP_FINE_MEAS);
     }
 }
 

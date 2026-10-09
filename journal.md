@@ -3,6 +3,7 @@ This doc is for briefly summarizing daily progress/thoughts/setbacks for future 
 
 ## 10-9-2026
 - Added `src/components/sensor_calibration/include/sensor_offsets.h` with `TRANSMITTER_OFFSET` / `RECEIVER_OFFSET` (23.25 mm each), the distance from each transducer to the base of its unit, where the actual distance is measured. The two-pass `receiver_readout` now adds both to every printed `range_mm`. The band/gate choice still uses the uncorrected range, since the fine window is in the sensor's time base. Builds clean.
+- The two-pass `receiver_readout` now prints only the sensor's distance for the coarse pass, with no I/Q. Only the fine pass's I/Q is read and dumped, which also shortens the gap between the two chirps. `extract_measurements.py` writes no CSV for blocks without I/Q rows.
 
 ## 10-8-2026
 - Implemented the two-pass pitch-catch readout (`src/apps/two-pass_pitch_catch_test/receiver_readout/`). The sender is unchanged; the receiver triggers it twice per reading. The two passes use the ICU's two measurement slots: meas 0 is the coarse f_op/4 pass, meas 1 the fine f_op/2 pass. Before each fine pass, the fine slot's count segment is lengthened by a 0 / 1.25 / 2.5 m pad (band picked from the coarse range), and its thresholds become a gate around the coarse distance. Both passes' I/Q are dumped. The host scripts now understand the new `pass=` line and the `--pad-mm` axis shift. Builds clean; not yet run on hardware.

@@ -11,7 +11,8 @@ but no CSV. Older captures in the `IQ_BEGIN ... / IQ_END` format are still accep
 The two-pass readout prints two blocks per reading (coarse, then fine), each with a
 `pass=coarse odr=5` / `pass=fine odr=6 band=N pad_mm=N coarse_mm=N` line. Those fields go into the
 manifest (a block's own odr overrides --odr), and the CSVs are named <prefix>_<meas>_<pass>.csv so
-the pair doesn't collide. Blocks without a pass= line keep the plain <prefix>_<meas>.csv name.
+the pair doesn't collide. The coarse block has no IQ rows (distance summary only), so it gets a
+manifest row but no CSV. Blocks without a pass= line keep the plain <prefix>_<meas>.csv name.
 
 Output files are named <prefix>_<meas>.csv, where prefix is --prefix if given, else the block's
 batch title (non-filename characters replaced with '_'), else the capture file's stem.
@@ -129,7 +130,7 @@ def main():
             meas = header["meas"]
             file_prefix = args.prefix or safe_name(header["title"]) or capture_path.stem
             out_path = ""
-            if not header["error"]:
+            if not header["error"] and samples:  # two-pass coarse blocks carry no IQ rows
                 pass_suffix = f"_{header['pass']}" if header["pass"] else ""
                 out_path = outdir / f"{file_prefix}_{meas}{pass_suffix}.csv"
                 with open(out_path, "w", newline="") as f:
