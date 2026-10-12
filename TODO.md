@@ -25,6 +25,22 @@
 - [ ] Design the omni-directional transmitter (the object to be tracked). Current plan is to implement it as a hexagon
 	  with an ultrasonic transmitter on each edge, and 360-degree-FoV IR emitter/demodulator pair on top.
 
+## CC1101 sync trigger (`src/apps/cc1101_sync_trigger_test/`)
+433 MHz async-OOK radio as the trigger instead of IR. Transmitter (RMT on GDO0, console menu) and
+receiver (GDO2 to the scope, ESP-NOW remote config) both build (2026-10-11). Not yet run on
+hardware. See `docs/cc1101_sync_trigger.md`.
+- [ ] First power-up: check each boot dump shows PARTNUM (0xF0) = 0x00, VERSION (0xF1) = 0x14, the
+      written config, and MARCSTATE (0xF5) = 0x0D on the receivers. If `cc1101_init` times out,
+      check CSn (GPIO25) wiring and that MISO goes low after CSn.
+- [ ] Check menu `3` / `5` end to end: a broadcast write shows up in a receiver's log and in its `DUMP`
+      reply.
+- [ ] Scope the transmitter's GPIO27 against two or more receivers' GDO2 with `0xAAAAAA` at 10, 50,
+      100 and 250 kBaud. Record the edge-to-edge skew between receivers (target well under 1 us).
+- [ ] Sweep AGCCTRL2 (0x03-0x07), AGCCTRL0 (0x91/0x92), and the RX bandwidth (MDMCFG4 high nibble)
+      with menu `3`, and find the setting with the lowest skew.
+- [ ] If it works: route GDO2 to INT1 and add the CC1101 to the bus that `chbsp_esp32_init()` brings
+      up (instead of `cc_ook_init()`'s own `spi_bus_initialize`).
+
 ## IR-triggered pitch-catch (`src/apps/ir_accuracy_test/`)
 `sender/` + `receiver/` - wireless version of `receiver_readout`: the receiver's IR burst
 (GPIO25, 38 kHz, 5 ms) triggers both sensors via each board's IR demodulator on INT1; GPIO2 is

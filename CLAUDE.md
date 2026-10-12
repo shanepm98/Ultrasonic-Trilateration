@@ -20,6 +20,9 @@ DevKitV1 over SPI, using TDK's SonicLib.
     instead of copying the values. `include/sensor_offsets.h` holds `TRANSMITTER_OFFSET` /
     `RECEIVER_OFFSET` (mm, transducer to the base of each unit, where the actual distance is
     measured), added to the sensor's range by the two-pass `receiver_readout`.
+  - `cc1101/` - SPI driver for the TI CC1101 sub-GHz radio. Takes an already-initialized SPI host
+    (the bus is shared with the ICU-20201). Manual CSn with MISO chip-ready polling.
+  - `console_io/` - single-keypress console input for app menus (number, hex, and line entry).
 - `src/apps/<name>/` - thin ESP-IDF projects. Each has `CMakeLists.txt` (sets
   `EXTRA_COMPONENT_DIRS` to `../../components`), `main/`, `sdkconfig.defaults`, `build.sh`.
   - `echo_mode_hardware_test/` - flashes the POST + free-running echo-mode (pulse-echo, single
@@ -37,6 +40,10 @@ DevKitV1 over SPI, using TDK's SonicLib.
     INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on
     hardware (2026-09-28). The receiver has a console menu: IR timing tuner (RMT waveform), raw
     I/Q readout, and distance readings.
+  - `cc1101_sync_trigger_test/{transmitter,receiver}` - 433 MHz async-OOK CC1101 as the trigger
+    (CSn GPIO25, GDO0 GPIO27). The transmitter's RMT drives GDO0 and it has a console menu.
+    Receivers output data on GDO2 for the scope. ESP-NOW broadcasts carry register writes and
+    dumps; shared code is in `common/cc_link/`. Builds; not yet tested on hardware.
 - `docs/` - project documentation (theory, bring-up notes, BSP reference). `docs/datasheets/`
   holds the PDFs; `docs/vendor/` holds excerpts from TDK docs.
 - `CAD/` - schematics, PCB, gerbers. `pics/` - photos and rendered schematics.

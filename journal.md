@@ -1,15 +1,19 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
-## 10-9-2026
-- Added `src/components/sensor_calibration/include/sensor_offsets.h` with `TRANSMITTER_OFFSET` / `RECEIVER_OFFSET` (23.25 mm each), the distance from each transducer to the base of its unit, where the actual distance is measured. The two-pass `receiver_readout` now adds both to every printed `range_mm`. The band/gate choice still uses the uncorrected range, since the fine window is in the sensor's time base. Builds clean.
-- The two-pass `receiver_readout` now prints only the sensor's distance for the coarse pass, with no I/Q. Only the fine pass's I/Q is read and dumped, which also shortens the gap between the two chirps. `extract_measurements.py` writes no CSV for blocks without I/Q rows.
-- Switched the two-pass coarse pass from the old placeholder thresholds to the calibrated `sc_rx_thresholds`, pulled from the `sensor_calibration` component (no local copy). Its ringdown cancel now comes from `SC_RX_THRESHOLDS_RINGDOWN_SAMPLES`. The fine-pass `coarse_mm` is now printed to 0.1 mm. Builds clean.
-
-## 10-8-2026
-- Implemented the two-pass pitch-catch readout (`src/apps/two-pass_pitch_catch_test/receiver_readout/`). The sender is unchanged; the receiver triggers it twice per reading. The two passes use the ICU's two measurement slots: meas 0 is the coarse f_op/4 pass, meas 1 the fine f_op/2 pass. Before each fine pass, the fine slot's count segment is lengthened by a 0 / 1.25 / 2.5 m pad (band picked from the coarse range), and its thresholds become a gate around the coarse distance. Both passes' I/Q are dumped. The host scripts now understand the new `pass=` line and the `--pad-mm` axis shift. Builds clean; not yet run on hardware.
-- Found in SonicLib that the pad should already be compensated: RX-only count segments are counted as pre-RX time, and `icu_gpt` adds that back into the time of flight. Needs hardware confirmation.
-- Gotchas: `ch_get_num_samples()` only reports meas 0, and `ch_meas_insert_segment()` at index 0 reads out of bounds (so the pad is set by editing the instruction length directly). The fine gate level is a placeholder until f_op/2 captures exist.
+## 10-11-2026
+- Wrote `cc1101_sync_trigger_test`, which tests a 433 MHz async-OOK CC1101 link as the node
+  trigger in place of IR. New reusable `src/components/cc1101/` SPI driver (manual reset, chip-ready
+  polling on MISO, bus held for each CSn window so it can share SPI2 with the ICU).
+  - The transmitter clocks its data out of GDO0 with the RMT and has a console menu: set data / bit
+    rate, send, broadcast a register write, write a local register, collect every receiver's
+    register dump.
+  - Receivers sit in RX with the data on GDO2 for the scope, and take register writes and dump
+    requests over ESP-NOW.
+  - AGC set per DN022.
+- Moved `console_io` from `ir_accuracy_test/receiver` to `src/components/console_io/` and added hex
+  and line entry. Transmitter, receiver and `ir_accuracy_test/receiver` all build. Nothing has run
+  on hardware yet.
 
 ## 10-7-2026
 - Moved the locked-down sensor config (`PC_TX_PULSE_US`, `PC_TX_PULSE_WIDTH`, `PC_TX_PHASE`, `PC_ODR`, `PC_MAX_RANGE_MM`) out of the apps' local `pitch_catch_common.h` into `src/components/sensor_calibration/include/sensor_calibration.h` (alongside the threshold table, replacing its duplicate `SC_RX_THRESHOLDS_ODR`/`_TX_US` defines), so new apps pull the current values via `REQUIRES sensor_calibration`. The trigger timing and sender-ready GPIO stay in each app's local `pitch_catch_common.h`, which now includes `sensor_calibration.h`. `pitch_catch_mode_hardware_test` and `two-pass_pitch_catch_test` both switched over; all six apps build.

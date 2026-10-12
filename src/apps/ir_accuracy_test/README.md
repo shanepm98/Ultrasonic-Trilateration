@@ -59,7 +59,7 @@ each consuming the shared components in `../../components/`:
   demodulator fires the sensor. Sensor config identical to the wired test's `sender/`.
 - `receiver/` - sensor configured `CH_MODE_TRIGGERED_RX_ONLY`. Owns the console menu and the
   measurement modes (`main/readout_loop.c`), the tuner dialog (`main/ir_tuner.c`), keypress input
-  (`main/console_io.c`), and the RMT IR waveform driver (`main/ir_led.c`). Sensor config is
+  (`src/components/console_io/`), and the RMT IR waveform driver (`main/ir_led.c`). Sensor config is
   identical to the wired test's `receiver_readout/`.
 - `include/ir_common.h` - cross-board constants: the sensor values carried over unchanged from
   `pitch_catch_common.h` (`PC_TX_*`, `PC_ODR`, `PC_MAX_RANGE_MM`) plus the IR link
