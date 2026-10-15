@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 /*!
- * \brief Run the menu forever. Requires console_init(), cc_ook_configure() at CC_OOK_DEFAULT_BAUD,
- * ook_tx_init(), and cc_link_init().
+ * \brief Run the menu forever. Requires console_init(), cc_ask_configure() at CC_ASK_DEFAULT_BAUD,
+ * ask_tx_init(), ask_tx_carrier_on(), and cc_link_init().
  */
 void tx_menu_run(void);
 

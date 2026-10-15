@@ -6,7 +6,7 @@ in time as possible, ideally all firing well within 1 microsecond of each other,
 This test will be performed with one transmitter node and multiple receiver nodes, with the receiver nodes being bench-tested to measure difference in data output
 times. 
 
-The CC1101 modules will be configured for asynchronous OOK mode at 433 MHz, and will be on the same SPI bus as the ICU-20201 sensors. Pins GDO0 and GDO2 on the CC1101 will be
+The CC1101 modules will be configured for asynchronous ASK mode at 433 MHz (changed from OOK on 2026-10-13: OOK was too susceptible to spurious noise), and will be on the same SPI bus as the ICU-20201 sensors. Pins GDO0 and GDO2 on the CC1101 will be
 configured as serial data in and serial data out, respectively. 
 
 ## Pinout information
@@ -24,7 +24,7 @@ AGCCTRL1 = 0x00
 AGCCTRL0 = 0x91 or 0x92
 
 ## Functional description
-Both the transmitter and receiver programs should begin by programming their CC1101 module for asynch OOK as described previously, and
+Both the transmitter and receiver programs should begin by programming their CC1101 module for asynch ASK as described previously, and
 then dump CC1101 register values in hexadecimal for register addresses 0x00-0x2E, and 0xF0-0xFD.
 
 For the receiver program, the device then enters loop that listens for ESP-NOW broadcasts from the transmitter node in "REGISTER:VALUE" format, which tell
@@ -43,12 +43,14 @@ for and prints these broadcasts from receiver nodes. The registers should be the
 Built, not yet tested on hardware. Design notes and register choices: `docs/cc1101_sync_trigger.md`.
 
 - `transmitter/` - radio setup, register dump, then the console menu (`main/tx_menu.c`). The RMT
-  peripheral clocks the data out on GPIO27/GDO0 (`main/ook_tx.c`): NRZ, MSB first, 0.1 us
-  resolution. `SPACE` strobes STX, waits for MARCSTATE = TX, sends, then strobes SIDLE. The
-  defaults are `0xAAAAAA` at 10 kBaud. `d` dumps the local registers again.
+  peripheral clocks the data out on GPIO27/GDO0 (`main/ask_tx.c`): NRZ, MSB first, 0.1 us
+  resolution. The radio goes into TX at boot and stays there, so the carrier is always on at the
+  "0" level (PATABLE[0]). `SPACE` only clocks the data, raising it to the "1" level (PATABLE[1])
+  for each 1 bit. Menu `2` and `4` drop to IDLE, write, and go back to TX. The defaults are
+  `0xAAAAAA` at 10 kBaud. `d` dumps the local registers again.
 - `receiver/` - radio setup, SRX, register dump, then it serves ESP-NOW commands. Each register
   write is done in IDLE, then the radio goes back to RX.
-- `common/cc_link/` - code both apps share: SPI bus + CC1101 config (`cc_ook`), ESP-NOW link
+- `common/cc_link/` - code both apps share: SPI bus + CC1101 config (`cc_ask`), ESP-NOW link
   (`cc_link`), message format (`cc_proto`).
 - `src/components/cc1101/` - the reusable CC1101 SPI driver. `src/components/console_io/` - the
   menu input helpers (moved here from `ir_accuracy_test`).
@@ -56,7 +58,7 @@ Built, not yet tested on hardware. Design notes and register choices: `docs/cc11
 ### ESP-NOW messages (ASCII broadcast, Wi-Fi channel 1)
 | Message | Direction | Meaning |
 |---|---|---|
-| `RR:VV` (e.g. `1B:07`) | TX -> RX | write hex value VV to register RR (0x00-0x2E, or 0x3E = PATABLE[1], the OOK "on" power) |
+| `RR:VV` (e.g. `1B:07`) | TX -> RX | write hex value VV to register RR (0x00-0x2E; 0x3E = PATABLE[0], the "0" amplitude; 0x3F = PATABLE[1], the "1" amplitude) |
 | `DUMP` | TX -> RX | every receiver replies with its registers |
 | `REGS:<122 hex digits>` | RX -> TX | 61 bytes: config 0x00-0x2E, then status 0x30-0x3D. Sent after a random 0-100 ms delay |
 

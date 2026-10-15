@@ -1,6 +1,15 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-13-2026
+- On hardware, async OOK picked up too much spurious noise (best result: AGCCTRL2 = 0xC3, low gain
+  only - `AGC_config.txt`). Switched `cc1101_sync_trigger_test` to async ASK. PATABLE[0] is now
+  0x34 (about -10 dBm) instead of 0x00, and the transmitter stays in TX, so the carrier is always
+  present and only its amplitude carries the data. Register changes drop it to IDLE and back.
+- Renamed `cc_ook` -> `cc_ask` and `ook_tx` -> `ask_tx`. Register 0x3E now means PATABLE[0] ("0"
+  level) and the new pseudo-address 0x3F means PATABLE[1], so the modulation depth can be tuned
+  remotely. Both apps build; not yet reflashed.
+
 ## 10-11-2026
 - Wrote `cc1101_sync_trigger_test`, which tests a 433 MHz async-OOK CC1101 link as the node
   trigger in place of IR. New reusable `src/components/cc1101/` SPI driver (manual reset, chip-ready

@@ -24,22 +24,30 @@
 - [ ] Wire up and test the 32KHz buffered oscillator circuit. 
 - [ ] Design the omni-directional transmitter (the object to be tracked). Current plan is to implement it as a hexagon
 	  with an ultrasonic transmitter on each edge, and 360-degree-FoV IR emitter/demodulator pair on top.
+- [ ] Add a 3.3v LDO regulator parallel to the ESP32, so that any relatively high-current loads (like the CC1101 or IR)
+      have dedicated power supply and dont go through the ESP32's onboard regulator
 
 ## CC1101 sync trigger (`src/apps/cc1101_sync_trigger_test/`)
-433 MHz async-OOK radio as the trigger instead of IR. Transmitter (RMT on GDO0, console menu) and
+433 MHz async radio as the trigger instead of IR. Switched from OOK to ASK on 2026-10-13, because OOK was too noise-prone. Transmitter (RMT on GDO0, console menu) and
 receiver (GDO2 to the scope, ESP-NOW remote config) both build (2026-10-11). Not yet run on
 hardware. See `docs/cc1101_sync_trigger.md`.
-- [ ] First power-up: check each boot dump shows PARTNUM (0xF0) = 0x00, VERSION (0xF1) = 0x14, the
+- [x] First power-up: check each boot dump shows PARTNUM (0xF0) = 0x00, VERSION (0xF1) = 0x14, the
       written config, and MARCSTATE (0xF5) = 0x0D on the receivers. If `cc1101_init` times out,
       check CSn (GPIO25) wiring and that MISO goes low after CSn.
-- [ ] Check menu `3` / `5` end to end: a broadcast write shows up in a receiver's log and in its `DUMP`
+- [x] Check menu `3` / `5` end to end: a broadcast write shows up in a receiver's log and in its `DUMP`
       reply.
-- [ ] Scope the transmitter's GPIO27 against two or more receivers' GDO2 with `0xAAAAAA` at 10, 50,
+- [x] Scope the transmitter's GPIO27 against two or more receivers' GDO2 with `0xAAAAAA` at 10, 50,
       100 and 250 kBaud. Record the edge-to-edge skew between receivers (target well under 1 us).
-- [ ] Sweep AGCCTRL2 (0x03-0x07), AGCCTRL0 (0x91/0x92), and the RX bandwidth (MDMCFG4 high nibble)
+- [x] Sweep AGCCTRL2 (0x03-0x07), AGCCTRL0 (0x91/0x92), and the RX bandwidth (MDMCFG4 high nibble)
       with menu `3`, and find the setting with the lowest skew.
+- [ ] ASK (2026-10-13): reflash both. Check the transmitter's dump shows PATABLE 34 C0 and that
+      MARCSTATE (0xF5) = 0x13 (TX) while idle, and confirm on a receiver's GDO2 that the noise
+      chatter is gone with no data being sent.
+- [ ] ASK: re-run the skew measurement at 10-250 kBaud. Sweep the "0" level (0x3E: 0x34 / 0x1D /
+      0x0E / 0x12) against the noise immunity and the edge skew. Re-sweep AGCCTRL2, starting from
+      the OOK result 0xC3 (`AGC_config.txt`).
 - [ ] If it works: route GDO2 to INT1 and add the CC1101 to the bus that `chbsp_esp32_init()` brings
-      up (instead of `cc_ook_init()`'s own `spi_bus_initialize`).
+      up (instead of `cc_ask_init()`'s own `spi_bus_initialize`).
 
 ## IR-triggered pitch-catch (`src/apps/ir_accuracy_test/`)
 `sender/` + `receiver/` - wireless version of `receiver_readout`: the receiver's IR burst
@@ -73,26 +81,22 @@ high-impedance on both boards; GPIO26 held high powers the IR module. **Verified
 Console now prompts for batch title / actual distance (mm) / reading count, then dumps N
 `BEGIN`/`END` blocks (title + actual_mm + sensor summary + I/Q). `host/extract_measurements.py`
 writes per-reading CSVs + `manifest.csv`. **Builds clean (2026-10-05), not yet run on hardware.**
-- [ ] **Blocker (2026-10-05):** receiver's sensor reports op freq 1 Hz (PMUT clock count ~0); the
-      POST now fails on this. Narrow it down: full power-cycle (unplug, not EN); run
-      `echo_mode_hardware_test` on this board; swap boards (receiver_readout on the sender board);
-      scope the sensor's 1.8 V rail during startup; recheck FFC seating / any recent rework.
-- [ ] Flash and walk a batch: prompt echo/Backspace, single Enter starts the batch (no double fire
+- [x] Flash and walk a batch: prompt echo/Backspace, single Enter starts the batch (no double fire
       from CR+LF), and N blocks come out for N readings.
-- [ ] Check back-to-back readings don't hit `sender_not_ready`. If they do, measure how long the
+- [x] Check back-to-back readings don't hit `sender_not_ready`. If they do, measure how long the
       sender's INT2 (GPIO33) stays low and raise `SENDER_READY_TIMEOUT_MS`.
-- [ ] Capture batches at several known distances (e.g. 250-3000 mm) and plot `range_mm` vs
+- [x] Capture batches at several known distances (e.g. 250-3000 mm) and plot `range_mm` vs
       `actual_mm` from `manifest.csv` to get the hardwired baseline error/offset.
 
 ## Two-pass pitch-catch (`src/apps/two-pass_pitch_catch_test/receiver_readout/`)
 Coarse f_op/4 pass picks a band, then a fine f_op/2 pass with a padded window. **Builds clean
 (2026-10-08), not yet run on hardware.** See the app's README.
-- [ ] Flash `sender` + `receiver_readout`. Check that the startup log shows meas 0 at ODR 5 and
+- [x] Flash `sender` + `receiver_readout`. Check that the startup log shows meas 0 at ODR 5 and
       meas 1 at ODR 6, and that readings never come back `wrong_slot`.
-- [ ] Capture batches in each band (e.g. 1 m, 2.5 m, 4 m). Check that the fine pulse lands at
+- [x] Capture batches in each band (e.g. 1 m, 2.5 m, 4 m). Check that the fine pulse lands at
       sample ≈ (coarse_mm - pad_mm) / Δ_fine. If the fine `range_mm` is about `pad_mm` short,
       SonicLib isn't compensating for the pad - add it in software.
-- [ ] Check the mounting offsets (`TRANSMITTER_OFFSET` / `RECEIVER_OFFSET` in
+- [x] Check the mounting offsets (`TRANSMITTER_OFFSET` / `RECEIVER_OFFSET` in
       `sensor_calibration/include/sensor_offsets.h`, 23.25 mm each). They're added to the printed
       `range_mm`. Measure them on the units and see how much of the ranging offset they explain.
 - [ ] Calibrate `TP_GATE_LEVEL` (and `TP_GATE_HALF_MM`) from the fine-pass I/Q. It is a placeholder.
@@ -123,7 +127,7 @@ Replay: 50/50 in all 14 batches, including 5 m at 30°, with 0 false detections.
       on signal strength. Find a correction, e.g. a fixed offset plus a dependence on amplitude.
 - [ ] Update `extract_measurements.py` / `plot_readout.py` `--odr` defaults (still 4) to match `PC_ODR` (5).
 
-## General performance tweaks
+## General performance tweaks and features
 - [ ] Raise SPI clock if needed. Running at 1MHz right now, can go up to 13MHz
 - [ ] Tune the `RF_*` `#define`s at the top of `rangefinder_loop.c` against real targets:
       thresholds (false targets vs missed targets), `RF_TX_PULSE_US` (far-target echo strength),

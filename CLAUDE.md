@@ -40,7 +40,7 @@ DevKitV1 over SPI, using TDK's SonicLib.
     INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on
     hardware (2026-09-28). The receiver has a console menu: IR timing tuner (RMT waveform), raw
     I/Q readout, and distance readings.
-  - `cc1101_sync_trigger_test/{transmitter,receiver}` - 433 MHz async-OOK CC1101 as the trigger
+  - `cc1101_sync_trigger_test/{transmitter,receiver}` - 433 MHz async-ASK CC1101 as the trigger (carrier always on)
     (CSn GPIO25, GDO0 GPIO27). The transmitter's RMT drives GDO0 and it has a console menu.
     Receivers output data on GDO2 for the scope. ESP-NOW broadcasts carry register writes and
     dumps; shared code is in `common/cc_link/`. Builds; not yet tested on hardware.
