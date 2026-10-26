@@ -40,6 +40,21 @@ hardware. See `docs/cc1101_sync_trigger.md`.
       100 and 250 kBaud. Record the edge-to-edge skew between receivers (target well under 1 us).
 - [x] Sweep AGCCTRL2 (0x03-0x07), AGCCTRL0 (0x91/0x92), and the RX bandwidth (MDMCFG4 high nibble)
       with menu `3`, and find the setting with the lowest skew.
+- [x] Skew sweep (2026-10-25, `host/skew_sweep.py`): ASK/FSK/MSK × TX rate × RX data rate × RX filter
+      × AGC. Best: ASK, receivers' data rate 160 kBaud (MDMCFG4 low nibble 0xC, MDMCFG3 0x93), AGC
+      05/00/91 - p90 0.35-0.45 us. Results in `docs/cc1101_sync_trigger.md`.
+- [ ] Flash the receivers with the SIDLE -> wait-for-IDLE fix (`receiver/main/main.c`); the transmitter
+      already has it.
+- [ ] Run another automated sweep (Claude hooked up to oscilloscope and transmitter), this time
+      using synchronous tx/rx mode. Only do this if async alternatives have too much spurious output.
+- [ ] Bake the recommended config into `cc_ask.c` (receivers MDMCFG4 0x2C or 0x8C, MDMCFG3 0x93,
+      AGCCTRL2 0x05; transmitter 10 kBaud) so a reboot doesn't fall back to the old defaults.
+      If using FSK instead, rename any reference to ASK->FSK.
+- [ ] Move recommended config to reusable component.
+- [ ] Confirm the recommended configs with more shots (e.g. 100 per config) and at real node spacing.
+      10 shots per config only resolves differences of about 0.1 us.
+- [ ] Try RX data rates above 160 kBaud (e.g. 250 / 500 kBaud): the skew is still falling at the top
+      of the swept range.
 - [ ] ASK (2026-10-13): reflash both. Check the transmitter's dump shows PATABLE 34 C0 and that
       MARCSTATE (0xF5) = 0x13 (TX) while idle, and confirm on a receiver's GDO2 that the noise
       chatter is gone with no data being sent.

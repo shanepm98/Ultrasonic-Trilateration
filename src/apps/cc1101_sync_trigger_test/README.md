@@ -69,3 +69,18 @@ cd receiver    && PORT=/dev/ttyUSB1 ./build.sh flash monitor   # once per receiv
 ```
 On the scope, probe the transmitter's GPIO27 (data in) and each receiver's GDO2 (data out).
 Send `0xAAAAAA` at a few bit rates and measure the skew between the receivers' GDO2 edges.
+
+### Skew sweep (`host/`)
+Host scripts that measure the first-falling-edge skew between two receivers. Scope CH1/CH2 go to two
+receivers' GDO2; the transmitter is on `/dev/ttyUSB1`; the Siglent scope is at 192.168.1.159. Results are in
+`docs/cc1101_sync_trigger.md`.
+```
+cd host && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python skew_sweep.py --dry-run      # one config, 3 shots
+.venv/bin/python skew_sweep.py                # full sweep (resumable) -> ../readouts/skew_sweep_<date>.csv
+.venv/bin/python skew_sweep.py --summarize    # ranked table
+.venv/bin/python skew_sweep.py --restore      # put every node back to the best config
+.venv/bin/python skew.py c1.csv c2.csv        # skew from two exported scope CSVs
+```
+Close any other program that holds the serial port or the scope first. The sweep verifies every
+receiver's registers via menu `5` before each config and repairs any register that drifted.

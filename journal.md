@@ -1,6 +1,19 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-25-2026
+- Measured the skew between two receivers' GDO2 first falling edges with the scope, first by hand
+  (ASK at 10 kBaud with the defaults: -1.8 to +7.7 us), then with an automated sweep
+  (`cc1101_sync_trigger_test/host/skew_sweep.py`). The sweep covered 117 configs and 1403 shots:
+  ASK/FSK/MSK, TX bit rate, receiver data rate, RX filter and AGC.
+- The receivers' data-rate register dominates: 160 kBaud gives p90 under 1 us in about half the
+  configs, while 10/50 kBaud never does. Best is ASK with AGC 05/00/91: p90 0.35 us, max 0.65 us. FSK
+  is close but has occasional whole-bit outliers. MSK is unusable in async mode.
+- Found and fixed a transmitter bug: SIDLE wasn't waited on, so every second register change left
+  the carrier off. The transmitter is reflashed; the receivers are not yet.
+- The transmitter's USB-serial link is flaky (failed flashes, one all-zeros CC1101 boot). Probably
+  the supply - see the LDO TODO.
+
 ## 10-13-2026
 - On hardware, async OOK picked up too much spurious noise (best result: AGCCTRL2 = 0xC3, low gain
   only - `AGC_config.txt`). Switched `cc1101_sync_trigger_test` to async ASK. PATABLE[0] is now

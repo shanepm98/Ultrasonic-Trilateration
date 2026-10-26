@@ -1,0 +1,5 @@
+numpy==2.5.4
+pyserial==3.5
+PyVISA==1.16.2
+PyVISA-py==0.8.1
+typing_extensions==4.16.0

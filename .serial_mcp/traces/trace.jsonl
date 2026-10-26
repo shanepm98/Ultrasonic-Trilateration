@@ -1,0 +1,32 @@
+{"event": "tool_call_start", "tool": "serial.open", "args": {"port": "/dev/ttyUSB1", "baudrate": 115200}, "connection_id": null, "ts": "2026-10-25T19:22:19.986201+00:00"}
+{"event": "tool_call_end", "tool": "serial.open", "ok": true, "error_code": null, "duration_ms": 2.9, "connection_id": null, "ts": "2026-10-25T19:22:19.989193+00:00"}
+{"event": "tool_call_start", "tool": "serial.read", "args": {"connection_id": "s7d21b8b7", "nbytes": 4096, "timeout_ms": 1500}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:22.789856+00:00"}
+{"event": "tool_call_end", "tool": "serial.read", "ok": true, "error_code": null, "duration_ms": 1500.4, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:24.290388+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:27.987313+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 3.4, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:27.990814+00:00"}
+{"event": "tool_call_start", "tool": "serial.read", "args": {"connection_id": "s7d21b8b7", "nbytes": 4096, "timeout_ms": 1500}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:28.011035+00:00"}
+{"event": "tool_call_end", "tool": "serial.read", "ok": true, "error_code": null, "duration_ms": 1500.4, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:29.511559+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:33.482887+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.7, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:33.483625+00:00"}
+{"event": "tool_call_start", "tool": "serial.read", "args": {"connection_id": "s7d21b8b7", "nbytes": 4096, "timeout_ms": 1500}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:33.506395+00:00"}
+{"event": "tool_call_end", "tool": "serial.read", "ok": true, "error_code": null, "duration_ms": 0.4, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:33.506913+00:00"}
+{"event": "tool_call_start", "tool": "serial.read", "args": {"connection_id": "s7d21b8b7", "nbytes": 4096, "timeout_ms": 800}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:37.365204+00:00"}
+{"event": "tool_call_end", "tool": "serial.read", "ok": true, "error_code": null, "duration_ms": 0.3, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:22:37.365602+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:24:33.693998+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.7, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:24:33.694895+00:00"}
+{"event": "tool_call_start", "tool": "serial.read", "args": {"connection_id": "s7d21b8b7", "nbytes": 1024, "timeout_ms": 800}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:24:33.717098+00:00"}
+{"event": "tool_call_end", "tool": "serial.read", "ok": true, "error_code": null, "duration_ms": 0.3, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:24:33.717462+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:25:35.572696+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.7, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:25:35.573543+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:25:54.501654+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.5, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:25:54.502378+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:27:04.499627+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.9, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:27:04.500801+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:27:46.742749+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.8, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:27:46.743597+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:28:16.365539+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 0.7, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:28:16.366294+00:00"}
+{"event": "tool_call_start", "tool": "serial.write", "args": {"connection_id": "s7d21b8b7", "as": "hex"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:28:46.787429+00:00"}
+{"event": "tool_call_end", "tool": "serial.write", "ok": true, "error_code": null, "duration_ms": 1.0, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:28:46.788657+00:00"}
+{"event": "tool_call_start", "tool": "serial.close", "args": {"connection_id": "s7d21b8b7"}, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:45:18.597248+00:00"}
+{"event": "tool_call_end", "tool": "serial.close", "ok": true, "error_code": null, "duration_ms": 16.6, "connection_id": "s7d21b8b7", "ts": "2026-10-25T19:45:18.613951+00:00"}

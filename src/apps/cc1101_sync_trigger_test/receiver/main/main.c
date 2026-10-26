@@ -34,6 +34,7 @@ static esp_err_t enter_rx(void) {
 static void handle_write(uint8_t reg, uint8_t value) {
 	uint8_t   old = 0, now = 0;
 	esp_err_t err = cc1101_strobe(cc_ask_dev(), CC1101_SIDLE); /* reconfigure in IDLE, recalibrate on SRX */
+	if (err == ESP_OK) err = cc1101_wait_marcstate(cc_ask_dev(), CC1101_MARCSTATE_IDLE, RX_SETTLE_US);
 	if (err == ESP_OK) err = cc_ask_read(reg, &old);
 	if (err == ESP_OK) err = cc_ask_write(reg, value);
 	if (err == ESP_OK) err = cc_ask_read(reg, &now);

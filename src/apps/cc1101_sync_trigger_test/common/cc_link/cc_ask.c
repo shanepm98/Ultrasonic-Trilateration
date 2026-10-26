@@ -44,7 +44,7 @@ static const uint8_t cc_ask_regs[CC_ASK_DUMP_CONFIG_LEN] = {
 		[CC1101_FREQ2]    = 0x10, /* 433.92 MHz = 0x10B071 * 26 MHz / 2^16 */
 		[CC1101_FREQ1]    = 0xB0,
 		[CC1101_FREQ0]    = 0x71,
-		[CC1101_MDMCFG4]  = 0x50, /* CHANBW_E = 1, CHANBW_M = 1: RX filter 325 kHz; DRATE_E set later */
+		[CC1101_MDMCFG4]  = 0x5C, /* CHANBW_E = 1, CHANBW_M = 1: RX filter 325 kHz; DRATE_E set later */
 		[CC1101_MDMCFG3]  = 0x00, /* DRATE_M set later */
 		[CC1101_MDMCFG2]  = 0x30, /* ASK/OOK, Manchester off, SYNC_MODE = 0 (no preamble/sync) */
 		[CC1101_MDMCFG1]  = 0x02, /* reset default */

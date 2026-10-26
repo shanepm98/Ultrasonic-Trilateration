@@ -65,7 +65,11 @@ esp_err_t ask_tx_carrier_on(void) {
 }
 
 esp_err_t ask_tx_carrier_off(void) {
-	return cc1101_strobe(cc_ask_dev(), CC1101_SIDLE);
+	esp_err_t err = cc1101_strobe(cc_ask_dev(), CC1101_SIDLE);
+	if (err != ESP_OK) return err;
+	/* Wait until the radio has actually left TX: an STX strobed while it is still on its way to
+	 * IDLE is ignored, which left the carrier off after every second register write. */
+	return cc1101_wait_marcstate(cc_ask_dev(), CC1101_MARCSTATE_IDLE, ASK_TX_SETTLE_US);
 }
 
 esp_err_t ask_tx_send(const uint8_t *data, size_t len) {
