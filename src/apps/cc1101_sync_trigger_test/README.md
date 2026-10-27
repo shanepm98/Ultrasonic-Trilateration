@@ -53,7 +53,15 @@ Built, not yet tested on hardware. Design notes and register choices: `docs/cc11
 - `common/cc_link/` - code both apps share: SPI bus + CC1101 setup (`cc_radio`), trigger configs (`cc_cfg`), ESP-NOW link
   (`cc_link`), message format (`cc_proto`).
 - **Trigger config (2026-10-26):** both apps boot with the register set chosen by `CC_CFG_SELECT` in
-  `common/cc_link/include/cc_cfg_select.h`. Change it, then rebuild and reflash every node.
+  `common/cc_link/include/cc_cfg_select.h`. To switch, edit this line:
+
+  ```c
+  #define CC_CFG_SELECT CC_CFG_ASK   /* or CC_CFG_FSK */
+  ```
+
+  Then rebuild and reflash the transmitter and every receiver together (`./build.sh flash` in
+  `transmitter/` and `receiver/`). Both apps include the same header, so nodes built from the same
+  tree always agree. A node left on old firmware keeps the old config.
   - `CC_CFG_ASK` (default) is `cc_cfg_ask_10k.c`: ASK, TX 10 kBaud, RX 160 kBaud, 541 kHz,
     AGC 05/00/91.
   - `CC_CFG_FSK` is `cc_cfg_fsk_50k.c`: 2-FSK, TX 50 kBaud, RX 160 kBaud, 541 kHz, AGC C3/00/91.

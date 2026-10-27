@@ -15,6 +15,23 @@ TX -> RX latency doesn't matter. Only the spread between receivers does.
 | `.../common/cc_link/cc_proto.c` | Format and parse `RR:VV`, `DUMP`, `REGS:<hex>`. |
 | `.../transmitter/main/radio_tx.c` | RMT on GPIO27 at 10 MHz, bytes encoder (one symbol per bit, NRZ, MSB first). `radio_tx_carrier_on/off` (STX / SIDLE); `radio_tx_send` only clocks data on the running carrier. Was `ask_tx.c`. |
 
+### Selecting the trigger config
+Both apps load `CC_CFG_ACTIVE` at boot. `CC_CFG_SELECT` in
+`src/apps/cc1101_sync_trigger_test/common/cc_link/include/cc_cfg_select.h` picks it:
+
+```c
+#define CC_CFG_SELECT CC_CFG_ASK   /* or CC_CFG_FSK */
+```
+
+- `CC_CFG_ASK` (default): `cc_cfg_ask_10k.c`, ASK, TX 10 kBaud, RX 160 kBaud, 541 kHz, AGC 05/00/91.
+- `CC_CFG_FSK`: `cc_cfg_fsk_50k.c`, 2-FSK, TX 50 kBaud, RX 160 kBaud, 541 kHz, AGC C3/00/91.
+- Any other value fails the build (`#error`).
+
+After changing it, rebuild and reflash the transmitter and every receiver together. A node left on
+old firmware keeps the old config, and the receivers' skew then no longer matches the measured
+results. The menu's `2`/`3`/`4` still change registers at runtime; a reboot goes back to the selected
+config. Why ASK is the default: `src/apps/cc1101_sync_trigger_test/results_500shot_20261026.md`.
+
 ### SPI details
 - CC1101 SPI is mode 0 at 1 MHz. Chip select is manual (GPIO25), so the driver can poll MISO for the
   chip-ready (SO low) signal after pulling CSn low.
