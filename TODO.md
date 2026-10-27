@@ -26,6 +26,7 @@
 	  with an ultrasonic transmitter on each edge, and 360-degree-FoV IR emitter/demodulator pair on top.
 - [ ] Add a 3.3v LDO regulator parallel to the ESP32, so that any relatively high-current loads (like the CC1101 or IR)
       have dedicated power supply and dont go through the ESP32's onboard regulator
+- [ ] Figure out why the ESP32 won't flash unless it is removed from the circuit
 
 ## CC1101 sync trigger (`src/apps/cc1101_sync_trigger_test/`)
 433 MHz async radio as the trigger instead of IR. Switched from OOK to ASK on 2026-10-13, because OOK was too noise-prone. Transmitter (RMT on GDO0, console menu) and
