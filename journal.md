@@ -10,6 +10,10 @@ This doc is for briefly summarizing daily progress/thoughts/setbacks for future 
   on the first shot after reconfiguring, then three ~20 us shots about 29 s apart). ASK (TX 10k,
   541 kHz, AGC 05) had none: max 1.36 us, p95 0.9 us, with a constant -0.17 us offset. ASK is the
   pick for now because its worst case is bounded.
+- Saved the two best configs as `common/cc_link/cc_cfg_ask_10k.c` / `cc_cfg_fsk_50k.c`. Both apps
+  now load the one `CC_CFG_SELECT` picks in `cc_cfg_select.h` (ASK by default). Since the code is no
+  longer ASK-only, renamed `cc_ask` -> `cc_radio` and `ask_tx` -> `radio_tx`, and dropped the unused
+  ASK-only default table / `cc_ask_configure()`. Both apps build; not flashed yet.
 - Added `host/plot_skew.py` (sweep plots in `docs/`), a `--port` option, and `configs_to_test.md`.
 - The transmitter is now on /dev/ttyUSB0, which needed an ACL (`setfacl`) because the user isn't in
   `uucp`.

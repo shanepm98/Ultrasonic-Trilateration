@@ -89,7 +89,7 @@ SHORTLIST = [  # ../configs_to_test.md, in that order
 
 
 def drate(baud):
-	"""(DRATE_E, DRATE_M) closest to baud - identical to cc_ask_set_datarate() in cc_ask.c."""
+	"""(DRATE_E, DRATE_M) closest to baud - identical to cc_radio_set_datarate() in cc_radio.c."""
 	e = math.floor(math.log2(baud * (1 << 20) / XOSC_HZ))
 	m = math.floor(baud * 268435456.0 / (XOSC_HZ * 2.0 ** e) - 256.0 + 0.5)  # lround() for x > 0
 	if m > 255:

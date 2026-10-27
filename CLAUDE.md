@@ -40,10 +40,12 @@ DevKitV1 over SPI, using TDK's SonicLib.
     INT1). ESP32 GPIO2 is high-impedance; GPIO26 powers the IR module. Verified working on
     hardware (2026-09-28). The receiver has a console menu: IR timing tuner (RMT waveform), raw
     I/Q readout, and distance readings.
-  - `cc1101_sync_trigger_test/{transmitter,receiver}` - 433 MHz async-ASK CC1101 as the trigger (carrier always on)
+  - `cc1101_sync_trigger_test/{transmitter,receiver}` - 433 MHz async CC1101 as the trigger (carrier
+    always on), ASK or 2-FSK as picked by `CC_CFG_SELECT` in `common/cc_link/include/cc_cfg_select.h`
     (CSn GPIO25, GDO0 GPIO27). The transmitter's RMT drives GDO0 and it has a console menu.
     Receivers output data on GDO2 for the scope. ESP-NOW broadcasts carry register writes and
-    dumps; shared code is in `common/cc_link/`. Builds; not yet tested on hardware.
+    dumps; shared code is in `common/cc_link/` (`cc_radio`, `cc_cfg_*`, `cc_link`, `cc_proto`).
+    Skew-tested on hardware (2026-10-25/26, `host/skew_sweep.py`); see `docs/cc1101_skew_sweep_summary.md`.
 - `docs/` - project documentation (theory, bring-up notes, BSP reference). `docs/datasheets/`
   holds the PDFs; `docs/vendor/` holds excerpts from TDK docs.
 - `CAD/` - schematics, PCB, gerbers. `pics/` - photos and rendered schematics.

@@ -43,15 +43,25 @@ for and prints these broadcasts from receiver nodes. The registers should be the
 Built, not yet tested on hardware. Design notes and register choices: `docs/cc1101_sync_trigger.md`.
 
 - `transmitter/` - radio setup, register dump, then the console menu (`main/tx_menu.c`). The RMT
-  peripheral clocks the data out on GPIO27/GDO0 (`main/ask_tx.c`): NRZ, MSB first, 0.1 us
+  peripheral clocks the data out on GPIO27/GDO0 (`main/radio_tx.c`): NRZ, MSB first, 0.1 us
   resolution. The radio goes into TX at boot and stays there, so the carrier is always on at the
   "0" level (PATABLE[0]). `SPACE` only clocks the data, raising it to the "1" level (PATABLE[1])
   for each 1 bit. Menu `2` and `4` drop to IDLE, write, and go back to TX. The defaults are
   `0xAAAAAA` at 10 kBaud. `d` dumps the local registers again.
 - `receiver/` - radio setup, SRX, register dump, then it serves ESP-NOW commands. Each register
   write is done in IDLE, then the radio goes back to RX.
-- `common/cc_link/` - code both apps share: SPI bus + CC1101 config (`cc_ask`), ESP-NOW link
+- `common/cc_link/` - code both apps share: SPI bus + CC1101 setup (`cc_radio`), trigger configs (`cc_cfg`), ESP-NOW link
   (`cc_link`), message format (`cc_proto`).
+- **Trigger config (2026-10-26):** both apps boot with the register set chosen by `CC_CFG_SELECT` in
+  `common/cc_link/include/cc_cfg_select.h`. Change it, then rebuild and reflash every node.
+  - `CC_CFG_ASK` (default) is `cc_cfg_ask_10k.c`: ASK, TX 10 kBaud, RX 160 kBaud, 541 kHz,
+    AGC 05/00/91.
+  - `CC_CFG_FSK` is `cc_cfg_fsk_50k.c`: 2-FSK, TX 50 kBaud, RX 160 kBaud, 541 kHz, AGC C3/00/91.
+  - Each file holds the transmitter's and the receivers' full 0x00-0x2E tables (they differ only in
+    data rate and AGC), the PATABLE, and the TX bit rate. `cc_radio_load()` writes them in one burst.
+  - Results behind the choice: `results_500shot_20261026.md`.
+  - The menu's `2`/`3`/`4` still change registers at runtime; a reboot goes back to the selected
+    config.
 - `src/components/cc1101/` - the reusable CC1101 SPI driver. `src/components/console_io/` - the
   menu input helpers (moved here from `ir_accuracy_test`).
 

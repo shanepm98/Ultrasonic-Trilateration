@@ -9,17 +9,18 @@ TX -> RX latency doesn't matter. Only the spread between receivers does.
 |---|---|
 | `src/components/cc1101/` | Reusable SPI driver: `cc1101_init` (manual reset, datasheet 19.1.2), register read/write/burst, status reads (header `0xC0\|addr`, i.e. 0xF0-0xFD), strobes, PATABLE, `cc1101_wait_marcstate`. |
 | `src/components/console_io/` | Menu input helpers, moved from `ir_accuracy_test/receiver/main/`. New: `console_read_line`, `console_read_hex` (byte string, optional `0x`), `console_read_hex_uint`. |
-| `.../common/cc_link/cc_ask.c` | SPI2 bring-up (MOSI 23 / MISO 19 / SCLK 18, ICU CS GPIO5 held high), the async-ASK register table, data-rate math, register dump. |
+| `.../common/cc_link/cc_radio.c` | SPI2 bring-up (MOSI 23 / MISO 19 / SCLK 18, ICU CS GPIO5 held high), `cc_radio_load()` (burst-write a full register set + PATABLE), data-rate math, register dump. Was `cc_ask.c` until 2026-10-26. |
+| `.../common/cc_link/cc_cfg_*.c`, `include/cc_cfg_select.h` | The two trigger configs (ASK `cc_cfg_ask_10k`, FSK `cc_cfg_fsk_50k`), each with TX and RX register tables. `CC_CFG_SELECT` picks the one both apps load at boot. |
 | `.../common/cc_link/cc_link.c` | ESP-NOW: NVS + Wi-Fi STA on channel 1, a broadcast peer, and a receive callback that only queues frames. |
 | `.../common/cc_link/cc_proto.c` | Format and parse `RR:VV`, `DUMP`, `REGS:<hex>`. |
-| `.../transmitter/main/ask_tx.c` | RMT on GPIO27 at 10 MHz, bytes encoder (one symbol per bit, NRZ, MSB first). `ask_tx_carrier_on/off` (STX / SIDLE); `ask_tx_send` only clocks data on the running carrier. |
+| `.../transmitter/main/radio_tx.c` | RMT on GPIO27 at 10 MHz, bytes encoder (one symbol per bit, NRZ, MSB first). `radio_tx_carrier_on/off` (STX / SIDLE); `radio_tx_send` only clocks data on the running carrier. Was `ask_tx.c`. |
 
 ### SPI details
 - CC1101 SPI is mode 0 at 1 MHz. Chip select is manual (GPIO25), so the driver can poll MISO for the
   chip-ready (SO low) signal after pulling CSn low.
 - Each access holds the bus (`spi_device_acquire_bus`) for the whole CSn-low window. That way an
   ICU-20201 transaction can never run while the CC1101 is selected.
-- `cc_ask_init()` calls `spi_bus_initialize()` itself, because this app has no SonicLib. An app that
+- `cc_radio_init()` calls `spi_bus_initialize()` itself, because this app has no SonicLib. An app that
   also runs the SonicLib BSP must instead add the CC1101 to the bus that `chbsp_esp32_init()` brings up.
 
 ## Register choices (26 MHz crystal)
@@ -138,7 +139,7 @@ AGC (stage 2, p90 |skew| in µs on the same base configs):
   MDMCFG3 = 0x93, AGC 05/00/91. That gives p90 ≈ 0.35–0.43 µs and max ≈ 0.44–0.65 µs over 10 shots.
 
 ### Setup problems found during the sweep
-- **Firmware bug (fixed):** `ask_tx_carrier_off()` strobed SIDLE without waiting for IDLE, so the STX
+- **Firmware bug (fixed):** `ask_tx_carrier_off()` (now `radio_tx_carrier_off()`) strobed SIDLE without waiting for IDLE, so the STX
   that follows was ignored. Every second local register change (menu `2`/`4`) left the transmitter's
   carrier **off**, so earlier manual ASK tests may have run without a carrier part of the time. Both
   the transmitter and the receiver write path now wait for MARCSTATE = IDLE after SIDLE. The

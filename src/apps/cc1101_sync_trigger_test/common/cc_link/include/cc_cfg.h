@@ -12,7 +12,7 @@
  * a receiver in async mode has no bit synchronizer, and a higher RX data rate samples the
  * demodulator output more finely, so the receivers run at 160 kBaud whatever the TX bit rate is.
  * The values are the live register dumps the sweeps ran with; FSCAL3..1 and AGCTEST hold the
- * SmartRF Studio values from cc_ask.c, since the chip overwrites them itself.
+ * SmartRF Studio values, since the chip overwrites them itself.
  */
 
 #ifndef CC_CFG_H_
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#include "cc_ask.h"
+#include "cc_radio.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,10 +28,10 @@ extern "C" {
 
 typedef struct {
 	const char *name;
-	uint8_t     tx_regs[CC_ASK_DUMP_CONFIG_LEN]; /* 0x00-0x2E for the transmitter, one burst write */
-	uint8_t     rx_regs[CC_ASK_DUMP_CONFIG_LEN]; /* 0x00-0x2E for every receiver */
-	uint8_t     patable[2];                      /* PATABLE[0..1] */
-	uint32_t    tx_baud;                         /* the transmitter's RMT bit rate; matches tx_regs */
+	uint8_t     tx_regs[CC_RADIO_DUMP_CONFIG_LEN]; /* 0x00-0x2E for the transmitter, one burst write */
+	uint8_t     rx_regs[CC_RADIO_DUMP_CONFIG_LEN]; /* 0x00-0x2E for every receiver */
+	uint8_t     patable[2];                        /* PATABLE[0..1] */
+	uint32_t    tx_baud;                           /* the transmitter's RMT bit rate; matches tx_regs */
 } cc_cfg_t;
 
 extern const cc_cfg_t cc_cfg_ask_10k;

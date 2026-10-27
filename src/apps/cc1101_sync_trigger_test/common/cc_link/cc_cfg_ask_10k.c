@@ -39,7 +39,7 @@ const cc_cfg_t cc_cfg_ask_10k = {
 			[CC1101_MCSM0]    = 0x18, /* FS_AUTOCAL = 1: calibrate on IDLE -> RX/TX; PO_TIMEOUT 149 us */
 			[CC1101_FOCCFG]   = 0x16,
 			[CC1101_BSCFG]    = 0x6C,
-			[CC1101_AGCCTRL2] = 0x03, /* AGC is RX-only; cc_ask.c default */
+			[CC1101_AGCCTRL2] = 0x03, /* AGC is RX-only; as tested */
 			[CC1101_AGCCTRL1] = 0x00,
 			[CC1101_AGCCTRL0] = 0x91,
 			[CC1101_WOREVT1]  = 0x87,
@@ -109,6 +109,6 @@ const cc_cfg_t cc_cfg_ask_10k = {
 			[CC1101_TEST1]    = 0x35,
 			[CC1101_TEST0]    = 0x09,
 		},
-		.patable = {CC_ASK_PA_LOW, CC_ASK_PA_HIGH},
+		.patable = {CC_RADIO_PA_LOW, CC_RADIO_PA_HIGH},
 		.tx_baud = 10000,
 };

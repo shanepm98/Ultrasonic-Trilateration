@@ -47,9 +47,11 @@ hardware. See `docs/cc1101_sync_trigger.md`.
       already has it.
 - [ ] Run another automated sweep (Claude hooked up to oscilloscope and transmitter), this time
       using synchronous tx/rx mode. Only do this if async alternatives have too much spurious output.
-- [ ] Bake the recommended config into `cc_ask.c` (receivers MDMCFG4 0x2C or 0x8C, MDMCFG3 0x93,
-      AGCCTRL2 0x05; transmitter 10 kBaud) so a reboot doesn't fall back to the old defaults.
-      If using FSK instead, rename any reference to ASK->FSK.
+- [x] Bake the recommended config in (2026-10-26): both apps now load `CC_CFG_ACTIVE` from
+      `common/cc_link/include/cc_cfg_select.h` (ASK `cc_cfg_ask_10k.c` by default, or FSK
+      `cc_cfg_fsk_50k.c`). Builds for both selections.
+- [ ] Flash the transmitter and both receivers with the `cc_cfg_select.h` firmware, and check that
+      the boot dumps match `cc_cfg_ask_10k.c`. The receivers also pick up the SIDLE -> IDLE-wait fix.
 - [ ] Move recommended config to reusable component.
 - [x] Test the shortlist in `src/apps/cc1101_sync_trigger_test/configs_to_test.md` more thoroughly:
       100+ shots each, also at real node spacing. It holds the sweep's top 4, plus FSK with a 203 kHz
@@ -59,8 +61,7 @@ hardware. See `docs/cc1101_sync_trigger.md`.
       under 1 us (max 0.87 us). See `docs/cc1101_skew_sweep_summary.md`.
 - [x] 500 shots each of FSK C3 and ASK 541 kHz (2026-10-26, `src/apps/cc1101_sync_trigger_test/results_500shot_20261026.md`):
       FSK had 4 whole-bit outliers (up to 119 us) in 500 shots. ASK had none (max 1.36 us, p95 0.9 us).
-- [ ] Bake ASK, TX 10k, receivers MDMCFG4 0x2C / MDMCFG3 0x93, AGC 05/00/91 into `cc_ask.c` unless
-      the FSK outliers get explained and fixed.
+- [ ] Switch `CC_CFG_SELECT` to `CC_CFG_FSK` only if the FSK outliers get explained and fixed.
 - [ ] Look into FSK's one-bit outliers: in the 500-shot run they were evenly spaced, about 29 s apart.
       Check whether that lines up with Wi-Fi/ESP-NOW beacons, other 433 MHz traffic, or AGC.
 - [ ] ASK has a constant -0.17 us median offset between the two receivers. Swap the receivers or the
@@ -74,7 +75,7 @@ hardware. See `docs/cc1101_sync_trigger.md`.
       0x0E / 0x12) against the noise immunity and the edge skew. Re-sweep AGCCTRL2, starting from
       the OOK result 0xC3 (`AGC_config.txt`).
 - [ ] If it works: route GDO2 to INT1 and add the CC1101 to the bus that `chbsp_esp32_init()` brings
-      up (instead of `cc_ask_init()`'s own `spi_bus_initialize`).
+      up (instead of `cc_radio_init()`'s own `spi_bus_initialize`).
 
 ## IR-triggered pitch-catch (`src/apps/ir_accuracy_test/`)
 `sender/` + `receiver/` - wireless version of `receiver_readout`: the receiver's IR burst
