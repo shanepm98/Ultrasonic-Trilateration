@@ -60,6 +60,8 @@ ASK here means:
   short, within the local ISM duty-cycle rules.
 
 ## Skew sweep (2026-10-25)
+Short overview: [`cc1101_skew_sweep_summary.md`](cc1101_skew_sweep_summary.md).
+
 Automated sweep of modulation × TX bit rate × receiver data rate × RX filter bandwidth × AGC. The
 figure of merit is the skew between the **first falling edge** of two receivers' GDO2 outputs for one
 `0xAAAAAA` burst. Scope: Siglent SDS1052DL+ (CH1 = receiver B0:B2:1C:A8:AD:80, CH2 = 8C:94:DF:58:7D:60),

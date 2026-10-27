@@ -1,6 +1,19 @@
 # Project Journal
 This doc is for briefly summarizing daily progress/thoughts/setbacks for future reference
 
+## 10-26-2026
+- Ran the six-config shortlist at 100 shots each (`skew_sweep.py --shortlist`, 601 shots). With more
+  shots, every p90 rose by about 0.1-0.3 us. Only FSK at TX 50 kBaud, 541 kHz, AGC C3/00/91 kept every
+  shot under 1 us (max 0.87 us). ASK at TX 10k, 541 kHz was next (max 1.07 us). The FSK config with
+  AGC 03/40/91 had one 19.9 us whole-bit outlier. 203 kHz filters had 3-5 shots over 1 us.
+- 500 shots each of the two best: FSK (TX 50k, 541 kHz, AGC C3) had 4 whole-bit outliers (-119 us
+  on the first shot after reconfiguring, then three ~20 us shots about 29 s apart). ASK (TX 10k,
+  541 kHz, AGC 05) had none: max 1.36 us, p95 0.9 us, with a constant -0.17 us offset. ASK is the
+  pick for now because its worst case is bounded.
+- Added `host/plot_skew.py` (sweep plots in `docs/`), a `--port` option, and `configs_to_test.md`.
+- The transmitter is now on /dev/ttyUSB0, which needed an ACL (`setfacl`) because the user isn't in
+  `uucp`.
+
 ## 10-25-2026
 - Measured the skew between two receivers' GDO2 first falling edges with the scope, first by hand
   (ASK at 10 kBaud with the defaults: -1.8 to +7.7 us), then with an automated sweep

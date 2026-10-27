@@ -51,8 +51,20 @@ hardware. See `docs/cc1101_sync_trigger.md`.
       AGCCTRL2 0x05; transmitter 10 kBaud) so a reboot doesn't fall back to the old defaults.
       If using FSK instead, rename any reference to ASK->FSK.
 - [ ] Move recommended config to reusable component.
-- [ ] Confirm the recommended configs with more shots (e.g. 100 per config) and at real node spacing.
-      10 shots per config only resolves differences of about 0.1 us.
+- [x] Test the shortlist in `src/apps/cc1101_sync_trigger_test/configs_to_test.md` more thoroughly:
+      100+ shots each, also at real node spacing. It holds the sweep's top 4, plus FSK with a 203 kHz
+      filter and receivers at 160 kBaud, with the TX at 1 and 10 kBaud. 10 shots per config only
+      resolves differences of about 0.1 us, so watch for whole-bit outliers too.
+      Done 2026-10-26 (100 shots each): only FSK, TX 50k, 541 kHz, AGC C3/00/91 kept every shot
+      under 1 us (max 0.87 us). See `docs/cc1101_skew_sweep_summary.md`.
+- [x] 500 shots each of FSK C3 and ASK 541 kHz (2026-10-26, `src/apps/cc1101_sync_trigger_test/results_500shot_20261026.md`):
+      FSK had 4 whole-bit outliers (up to 119 us) in 500 shots. ASK had none (max 1.36 us, p95 0.9 us).
+- [ ] Bake ASK, TX 10k, receivers MDMCFG4 0x2C / MDMCFG3 0x93, AGC 05/00/91 into `cc_ask.c` unless
+      the FSK outliers get explained and fixed.
+- [ ] Look into FSK's one-bit outliers: in the 500-shot run they were evenly spaced, about 29 s apart.
+      Check whether that lines up with Wi-Fi/ESP-NOW beacons, other 433 MHz traffic, or AGC.
+- [ ] ASK has a constant -0.17 us median offset between the two receivers. Swap the receivers or the
+      scope channels to see whether it can be calibrated out per node.
 - [ ] Try RX data rates above 160 kBaud (e.g. 250 / 500 kBaud): the skew is still falling at the top
       of the swept range.
 - [ ] ASK (2026-10-13): reflash both. Check the transmitter's dump shows PATABLE 34 C0 and that

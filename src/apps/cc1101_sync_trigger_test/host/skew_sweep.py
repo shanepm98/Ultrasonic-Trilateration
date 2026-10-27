@@ -9,8 +9,11 @@ falling edge). Every shot is one CSV row; see skew.py for the edge extraction an
     python skew_sweep.py --dry-run       # one config, 3 shots
     python skew_sweep.py --summarize     # ranked per-config table from the CSV
     python skew_sweep.py --restore       # put every node back to BEST and exit
+    python skew_sweep.py --shortlist     # SHORTLIST (../configs_to_test.md), --shots valid shots each
 
 Resuming skips configs that already have SHOTS_PER_CONFIG valid shots (or a config_failed row).
+--shortlist writes to its own CSV (skew_confirm_<date>.csv) and resumes by topping each config up to
+--shots valid shots.
 """
 
 import argparse
@@ -75,6 +78,14 @@ class Config:
 
 
 BEST = Config("ASK", 1.0, 160, 325, AGC_PRESETS["best"])
+SHORTLIST = [  # ../configs_to_test.md, in that order
+	Config("ASK", 10, 160, 541, AGC_PRESETS["best"]),
+	Config("FSK", 50, 160, 541, AGC_PRESETS["lowgain"]),
+	Config("FSK", 50, 160, 541, AGC_PRESETS["default"]),
+	Config("ASK", 10, 160, 203, AGC_PRESETS["best"]),
+	Config("FSK", 1, 160, 203, AGC_PRESETS["best"]),
+	Config("FSK", 10, 160, 203, AGC_PRESETS["best"]),
+]
 
 
 def drate(baud):
@@ -455,7 +466,8 @@ class Sweep:
 	def shoot(self, stage, cfg, shots):
 		ok, attempt, skews = 0, 0, []
 		counts = {}
-		while ok < shots and attempt < MAX_ATTEMPTS:
+		max_attempts = max(MAX_ATTEMPTS, math.ceil(shots * 1.5))
+		while ok < shots and attempt < max_attempts:
 			attempt += 1
 			time.sleep(self.settle)
 			if self.tx.rebooted:
@@ -605,14 +617,20 @@ def main():
 	ap.add_argument("--dry-run", action="store_true")
 	ap.add_argument("--summarize", action="store_true")
 	ap.add_argument("--restore", action="store_true")
-	ap.add_argument("--csv", default=CSV_PATH)
+	ap.add_argument("--port", default=SERIAL_PORT, help="transmitter serial port")
+	ap.add_argument("--shortlist", action="store_true")
+	ap.add_argument("--shots", type=int, default=100, help="valid shots per config for --shortlist")
+	ap.add_argument("--only", help="comma-separated 1-based SHORTLIST entries, e.g. 1,2")
+	ap.add_argument("--csv")
 	args = ap.parse_args()
+	if args.csv is None:
+		args.csv = CSV_PATH.replace("skew_sweep_", "skew_confirm_") if args.shortlist else CSV_PATH
 	os.makedirs(READOUTS, exist_ok=True)
 	if args.summarize:
 		summarize(args.csv)
 		return 0
 
-	tx = Transmitter(SERIAL_PORT)
+	tx = Transmitter(args.port)
 	scope = Scope(SCOPE)
 	scope.setup()
 	tx.op(tx.sync)
@@ -623,6 +641,15 @@ def main():
 			pass
 		elif args.dry_run:
 			sweep.run_config("dry", BEST, shots=3)
+		elif args.shortlist:
+			have = per_config(load_rows(args.csv))
+			picks = [int(x) for x in args.only.split(",")] if args.only else range(1, len(SHORTLIST) + 1)
+			for i in picks:
+				cfg = SHORTLIST[i - 1]
+				need = args.shots - len(have.get(cfg.cid, {}).get("skews", []))
+				log(f"[confirm {i}/{len(SHORTLIST)}] {cfg.cid}: {max(0, need)} shots to go")
+				if need > 0:
+					sweep.run_config("confirm", cfg, shots=need)
 		else:
 			for stage, grid in (("1", lambda rows: stage1_grid()), ("2", stage2_grid)):
 				rows = load_rows(args.csv)

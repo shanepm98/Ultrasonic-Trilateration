@@ -3,7 +3,7 @@
 # message format (cc_proto). See ../../README.md.
 
 idf_component_register(
-    SRCS "cc_ask.c" "cc_link.c" "cc_proto.c"
+    SRCS "cc_ask.c" "cc_cfg_ask_10k.c" "cc_cfg_fsk_50k.c" "cc_link.c" "cc_proto.c"
     INCLUDE_DIRS "include"
     REQUIRES cc1101 esp_driver_spi esp_driver_gpio esp_wifi esp_event nvs_flash freertos log
 )
