@@ -13,6 +13,7 @@
 - [ ] Get website launched to document the process in more detailed writeups of each stage. 
 - [ ] Write up final research paper detailing the entire project: motivation, theory of operation, hardware design,
 	  software design, next steps, etc.
+- [ ] Add instructions to the README.md for installing the espressif Docker container for convenience.
 
 ## Hardware Design & testing
 - [ ] Bench-test to verify that clocking the ESP32 externally via GPIO33 works. 
